@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDatabase } from "@/lib/mongodb";
 
-// In-memory persistent state for serverless demo fallback
+// In-memory fallback store (when MONGODB_URI is not provided)
 const globalStore = (global as any).__LUCKHUB_STORE__ || {
   users: [
     {
@@ -55,15 +56,50 @@ const globalStore = (global as any).__LUCKHUB_STORE__ || {
 };
 (global as any).__LUCKHUB_STORE__ = globalStore;
 
-function getUserFromToken(req: NextRequest) {
+async function getUserFromToken(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
   const token = auth.replace("Bearer ", "").trim();
   if (!token) return null;
-  // If simulated or JWT token
+
+  const db = await getDatabase();
+  if (db) {
+    const user = await db.collection<any>("users").findOne({ _id: token });
+    if (user) return user;
+  }
+
   const u = globalStore.users.find((x: any) => x._id === token || x.email === token);
   if (u) return u;
-  // Default to first user if token present
   return globalStore.users[0];
+}
+
+async function updateUserBalance(user: any, newBalance: number) {
+  user.balance = newBalance;
+  const db = await getDatabase();
+  if (db) {
+    try {
+      await db.collection<any>("users").updateOne({ _id: user._id }, { $set: { balance: newBalance } });
+    } catch {}
+  }
+}
+
+async function recordTransaction(tx: any) {
+  globalStore.transactions.unshift(tx);
+  const db = await getDatabase();
+  if (db) {
+    try {
+      await db.collection<any>("transactions").insertOne(tx);
+    } catch {}
+  }
+}
+
+async function recordBet(bet: any) {
+  globalStore.bets.unshift(bet);
+  const db = await getDatabase();
+  if (db) {
+    try {
+      await db.collection<any>("bets").insertOne(bet);
+    } catch {}
+  }
 }
 
 function houseRNG(rtp: number) {
@@ -76,7 +112,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
 
   // GET /api/health
   if (endpoint === "health") {
-    return NextResponse.json({ status: "ok", country: "BD", currency: "BDT", time: new Date() });
+    const db = await getDatabase();
+    return NextResponse.json({
+      status: "ok",
+      country: "BD",
+      currency: "BDT",
+      database: db ? "MongoDB Connected" : "Local / Cloud Memory Store Ready",
+      time: new Date(),
+    });
   }
 
   // GET /api/games
@@ -86,7 +129,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
 
   // GET /api/auth/me
   if (endpoint === "auth/me") {
-    const user = getUserFromToken(req);
+    const user = await getUserFromToken(req);
     if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const { password, ...safeUser } = user;
     return NextResponse.json({ user: safeUser });
@@ -94,17 +137,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
 
   // GET /api/wallet/balance
   if (endpoint === "wallet/balance") {
-    const user = getUserFromToken(req);
+    const user = await getUserFromToken(req);
     if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     return NextResponse.json({ balance: user.balance, bonusBalance: user.bonusBalance || 0, currency: "BDT" });
   }
 
   // GET /api/wallet/transactions
   if (endpoint === "wallet/transactions") {
-    const user = getUserFromToken(req);
-    const txs = user
-      ? globalStore.transactions.filter((t: any) => t.user === user._id)
-      : globalStore.transactions;
+    const user = await getUserFromToken(req);
+    const db = await getDatabase();
+    let txs = [];
+    if (db && user) {
+      txs = await db.collection<any>("transactions").find({ user: user._id }).sort({ createdAt: -1 }).limit(20).toArray();
+    } else {
+      txs = user
+        ? globalStore.transactions.filter((t: any) => t.user === user._id)
+        : globalStore.transactions;
+    }
     return NextResponse.json({ transactions: txs, total: txs.length });
   }
 
@@ -139,9 +188,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   // POST /api/auth/login
   if (endpoint === "auth/login") {
     const { email, password } = body;
-    const user = globalStore.users.find(
-      (u: any) => (u.email === email || u.username === email) && u.password === password
-    );
+    const db = await getDatabase();
+    let user: any = null;
+
+    if (db) {
+      user = await db.collection<any>("users").findOne({
+        $or: [{ email }, { username: email }],
+        password,
+      });
+    }
+
+    if (!user) {
+      user = globalStore.users.find(
+        (u: any) => (u.email === email || u.username === email) && u.password === password
+      );
+    }
+
     if (!user) {
       return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
     }
@@ -155,10 +217,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     if (!username || !email || !password) {
       return NextResponse.json({ message: "All fields required" }, { status: 400 });
     }
-    const existing = globalStore.users.find((u: any) => u.email === email || u.username === username);
-    if (existing) {
-      return NextResponse.json({ message: "Username or email already taken" }, { status: 400 });
-    }
+
     const newUser = {
       _id: `user_${Date.now()}`,
       username,
@@ -172,22 +231,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       status: "active",
       createdAt: new Date().toISOString(),
     };
+
     globalStore.users.push(newUser);
+    const db = await getDatabase();
+    if (db) {
+      try {
+        await db.collection<any>("users").insertOne(newUser);
+      } catch {}
+    }
+
     const { password: _, ...safeUser } = newUser;
     return NextResponse.json({ token: newUser._id, user: safeUser });
   }
 
   // Authenticated user check for games & wallet
-  const user = getUserFromToken(req);
+  const user = await getUserFromToken(req);
 
   // POST /api/wallet/deposit
   if (endpoint === "wallet/deposit") {
     if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const amount = parseFloat(body.amount) || 0;
     if (amount < 100) return NextResponse.json({ message: "Minimum deposit is 100 BDT" }, { status: 400 });
-    
-    // Auto-credit for demo play & create tx
-    user.balance += amount;
+
+    const newBalance = (user.balance || 0) + amount;
+    await updateUserBalance(user, newBalance);
+
     const tx = {
       _id: `tx_${Date.now()}`,
       user: user._id,
@@ -198,7 +266,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       status: "completed",
       createdAt: new Date().toISOString(),
     };
-    globalStore.transactions.unshift(tx);
+    await recordTransaction(tx);
+
     return NextResponse.json({ message: "Deposit verified & credited in BDT!", transaction: tx });
   }
 
@@ -209,7 +278,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     if (amount < 200) return NextResponse.json({ message: "Minimum withdrawal is 200 BDT" }, { status: 400 });
     if (user.balance < amount) return NextResponse.json({ message: "Insufficient balance" }, { status: 400 });
 
-    user.balance -= amount;
+    const newBalance = user.balance - amount;
+    await updateUserBalance(user, newBalance);
+
     const tx = {
       _id: `tx_${Date.now()}`,
       user: user._id,
@@ -220,7 +291,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       status: "pending",
       createdAt: new Date().toISOString(),
     };
-    globalStore.transactions.unshift(tx);
+    await recordTransaction(tx);
+
     return NextResponse.json({ message: "Withdrawal request submitted!", transaction: tx });
   }
 
@@ -253,9 +325,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
       payout = Math.round(amount * multiplier);
     }
 
-    user.balance = user.balance - amount + payout;
+    const newBalance = user.balance - amount + payout;
+    await updateUserBalance(user, newBalance);
+
     const bet = { game: "slots", amount, multiplier, isWin, payout, createdAt: new Date().toISOString() };
-    globalStore.bets.unshift(bet);
+    await recordBet(bet);
 
     return NextResponse.json({ reels: finalReels, isWin, multiplier, payout, balance: user.balance });
   }
@@ -272,7 +346,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     if (!houseRNG(95)) crashPoint = Math.max(1.0, crashPoint * 0.35);
     crashPoint = Math.max(1.0, Math.min(crashPoint, 150));
 
-    user.balance -= amount;
+    const newBalance = user.balance - amount;
+    await updateUserBalance(user, newBalance);
+
     const betId = `crash_${Date.now()}`;
     globalStore.crashBets[betId] = { amount, crashPoint, userId: user._id, settled: false };
 
@@ -290,8 +366,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     const payout = isWin ? Math.round(bet.amount * m) : 0;
     bet.settled = true;
 
-    user.balance += payout;
-    globalStore.bets.unshift({ game: "crash", amount: bet.amount, multiplier: m, isWin, payout });
+    const newBalance = user.balance + payout;
+    await updateUserBalance(user, newBalance);
+
+    await recordBet({ game: "crash", amount: bet.amount, multiplier: m, isWin, payout });
 
     return NextResponse.json({ isWin, payout, crashPoint: bet.crashPoint, balance: user.balance });
   }
@@ -317,8 +395,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
 
     if (!houseRNG(97)) { isWin = false; multiplier = 0; }
     const payout = isWin ? Math.round(amount * multiplier) : 0;
-    user.balance = user.balance - amount + payout;
-    globalStore.bets.unshift({ game: "dice", amount, multiplier, isWin, payout });
+
+    const newBalance = user.balance - amount + payout;
+    await updateUserBalance(user, newBalance);
+    await recordBet({ game: "dice", amount, multiplier, isWin, payout });
 
     return NextResponse.json({ roll, isWin, multiplier, payout, balance: user.balance });
   }
@@ -345,8 +425,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
 
     const multiplier = isWin ? multipliers[result] : 0;
     const payout = isWin ? Math.round(amount * multiplier) : 0;
-    user.balance = user.balance - amount + payout;
-    globalStore.bets.unshift({ game: "color", amount, multiplier, isWin, payout });
+
+    const newBalance = user.balance - amount + payout;
+    await updateUserBalance(user, newBalance);
+    await recordBet({ game: "color", amount, multiplier, isWin, payout });
 
     return NextResponse.json({ result, isWin, multiplier, payout, balance: user.balance });
   }
@@ -370,7 +452,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     const multiplier = isWin ? 1.95 : 0;
     const payout = isWin ? Math.round(amount * multiplier) : 0;
 
-    user.balance = user.balance - amount + payout;
+    const newBalance = user.balance - amount + payout;
+    await updateUserBalance(user, newBalance);
     return NextResponse.json({ playerCards, dealerCards, isWin, multiplier, payout, balance: user.balance });
   }
 
@@ -383,7 +466,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     const isWin = houseRNG(95);
     const multiplier = isWin ? 2.0 : 0;
     const payout = isWin ? Math.round(amount * multiplier) : 0;
-    user.balance = user.balance - amount + payout;
+
+    const newBalance = user.balance - amount + payout;
+    await updateUserBalance(user, newBalance);
 
     return NextResponse.json({ isWin, multiplier, payout, balance: user.balance });
   }
@@ -415,7 +500,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     if (!houseRNG(92)) { isWin = false; selectedSlice = slices[0]; }
     const multiplier = isWin ? selectedSlice.mult : 0;
     const payout = isWin ? Math.round(amount * multiplier) : 0;
-    user.balance = user.balance - amount + payout;
+
+    const newBalance = user.balance - amount + payout;
+    await updateUserBalance(user, newBalance);
 
     return NextResponse.json({ slice: selectedSlice.label, isWin, multiplier, payout, balance: user.balance });
   }
