@@ -27,6 +27,10 @@ import {
   ChevronRight,
   Eye,
   LogOut,
+  Home as HomeIcon,
+  Gamepad2,
+  Smartphone,
+  Download,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -67,6 +71,7 @@ export default function Home() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletTab, setWalletTab] = useState<"deposit" | "withdraw" | "history">("deposit");
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
 
   // Form states
   const [loginEmail, setLoginEmail] = useState("");
@@ -90,6 +95,10 @@ export default function Home() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [copiedAccount, setCopiedAccount] = useState(false);
 
+  // Mobile PWA Install state
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
+
   // Admin stats
   const [adminStats, setAdminStats] = useState<any>(null);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
@@ -110,6 +119,30 @@ export default function Home() {
     }, 4500);
     return () => clearInterval(timer);
   }, [tickers.length]);
+
+  // Capture PWA beforeinstallprompt event
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === "accepted") {
+        setShowInstallBanner(false);
+      }
+      setInstallPrompt(null);
+    } else {
+      alert("To install LuckHub BD: Tap your browser's share or menu icon and select 'Add to Home Screen'!");
+    }
+  };
 
   // Load token & user
   useEffect(() => {
@@ -134,9 +167,7 @@ export default function Home() {
         setToken(null);
         setUser(null);
       }
-    } catch {
-      // API might be starting
-    }
+    } catch {}
   };
 
   const fetchGames = async () => {
@@ -146,9 +177,7 @@ export default function Home() {
         const data = await res.json();
         setGames(data.games || []);
       }
-    } catch {
-      // Handled
-    }
+    } catch {}
   };
 
   const handleLogin = async (e?: React.FormEvent, customEmail?: string, customPass?: string) => {
@@ -268,7 +297,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Deposit request failed");
-      setWalletMessage("✅ Deposit request sent! BDT will be added shortly once verified.");
+      setWalletMessage("✅ Deposit credited! BDT added to your balance.");
       setDepositTrxId("");
       fetchTransactions();
       refreshBalance();
@@ -335,91 +364,110 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 font-sans">
+    <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 font-sans selection:bg-amber-500 selection:text-black">
+      {/* Mobile PWA Install Banner */}
+      {showInstallBanner && (
+        <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-slate-950 px-3 py-2 text-xs font-bold flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 shrink-0" />
+            <span>Install LuckHub BD App on your phone for instant access!</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleInstallClick}
+              className="bg-slate-950 hover:bg-slate-900 text-amber-300 px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 shadow"
+            >
+              <Download className="w-3 h-3" /> Install
+            </button>
+            <button onClick={() => setShowInstallBanner(false)} className="text-slate-950/70 hover:text-black">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Banner Ticker */}
-      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-amber-950/60 border-b border-amber-500/20 px-4 py-1.5 text-xs flex items-center justify-between">
+      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-amber-950/60 border-b border-amber-500/20 px-3 sm:px-4 py-1.5 text-xs flex items-center justify-between">
         <div className="flex items-center space-x-2 truncate">
-          <span className="flex h-2 w-2 relative">
+          <span className="flex h-2 w-2 relative shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span className="font-semibold text-amber-400">LIVE FEED:</span>
-          <span className="text-slate-300 transition-all duration-300">{tickers[tickerIndex]}</span>
+          <span className="font-semibold text-amber-400 shrink-0">LIVE FEED:</span>
+          <span className="text-slate-300 truncate">{tickers[tickerIndex]}</span>
         </div>
-        <div className="flex items-center space-x-3 text-[11px] text-slate-400 shrink-0">
+        <div className="flex items-center space-x-3 text-[11px] text-slate-400 shrink-0 hidden sm:flex">
           <span className="flex items-center gap-1 text-emerald-400">
             <Shield className="w-3.5 h-3.5" /> 100% Certified BD Casino
           </span>
-          <span className="hidden sm:inline bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded">
-            Currency: ৳ BDT
+          <span className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded font-mono">
+            ৳ BDT
           </span>
         </div>
       </div>
 
       {/* Main Header */}
-      <header className="sticky top-0 z-40 bg-[#0a0f1d]/95 backdrop-blur border-b border-slate-800 px-4 lg:px-8 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-[#0a0f1d]/95 backdrop-blur border-b border-slate-800 px-3 lg:px-8 py-2.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
           {/* Logo */}
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setSelectedGame(null)}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 border border-amber-300">
-              <span className="text-2xl">🎰</span>
+          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setSelectedGame(null)}>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 border border-amber-300 shrink-0">
+              <span className="text-xl sm:text-2xl">🎰</span>
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xl font-black tracking-wider bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-500 bg-clip-text text-transparent">
+              <div className="flex items-center gap-1">
+                <span className="text-lg sm:text-xl font-black tracking-wider bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-500 bg-clip-text text-transparent">
                   LUCKHUB
                 </span>
-                <span className="bg-emerald-600 text-[10px] font-bold px-1.5 py-0.2 rounded text-white border border-emerald-400">
+                <span className="bg-emerald-600 text-[9px] font-bold px-1.5 py-0.2 rounded text-white border border-emerald-400">
                   BD 🇧🇩
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium">
+              <p className="text-[9px] text-slate-400 uppercase tracking-widest font-medium hidden sm:block">
                 Official Bangladesh Platform
               </p>
             </div>
           </div>
 
           {/* User / Auth Bar */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             {user ? (
               <>
                 {/* Balance Pill */}
-                <div className="flex items-center bg-[#131b2e] border border-amber-500/30 rounded-xl px-3.5 py-1.5 shadow-inner">
-                  <div className="flex flex-col text-right mr-2">
-                    <span className="text-[10px] text-slate-400 font-medium">BDT Balance</span>
-                    <span className="text-sm font-extrabold text-amber-400 flex items-center gap-0.5">
+                <div
+                  onClick={() => {
+                    setShowWalletModal(true);
+                    setWalletTab("deposit");
+                  }}
+                  className="flex items-center bg-[#131b2e] border border-amber-500/30 rounded-xl px-2.5 sm:px-3.5 py-1 shadow-inner cursor-pointer"
+                >
+                  <div className="flex flex-col text-right mr-1.5 sm:mr-2">
+                    <span className="text-[9px] text-slate-400 font-medium">Balance</span>
+                    <span className="text-xs sm:text-sm font-extrabold text-amber-400 flex items-center gap-0.5">
                       <span>৳</span> {user.balance.toLocaleString()}
                     </span>
                   </div>
                   <button
-                    onClick={refreshBalance}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      refreshBalance();
+                    }}
                     title="Refresh Balance"
                     className="p-1 hover:text-amber-400 text-slate-400 transition"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3 h-3" />
                   </button>
                 </div>
 
-                {/* Deposit Button */}
+                {/* Deposit Button (Desktop) */}
                 <button
                   onClick={() => {
                     setShowWalletModal(true);
                     setWalletTab("deposit");
                   }}
-                  className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition transform active:scale-95"
+                  className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-bold px-3.5 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition transform active:scale-95"
                 >
-                  <ArrowDownLeft className="w-4 h-4" /> Deposit (+100%)
-                </button>
-
-                {/* Withdraw Button */}
-                <button
-                  onClick={() => {
-                    setShowWalletModal(true);
-                    setWalletTab("withdraw");
-                  }}
-                  className="hidden sm:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-3 py-2 rounded-xl text-xs transition"
-                >
-                  <ArrowUpRight className="w-4 h-4" /> Withdraw
+                  <ArrowDownLeft className="w-3.5 h-3.5" /> Deposit (+100%)
                 </button>
 
                 {/* Admin button if admin */}
@@ -429,15 +477,15 @@ export default function Home() {
                       fetchAdminData();
                       setShowAdminModal(true);
                     }}
-                    className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold px-2.5 py-1.5 rounded-lg text-xs"
+                    className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs"
                   >
-                    <Shield className="w-3.5 h-3.5" /> Admin
+                    <Shield className="w-3 h-3" /> Admin
                   </button>
                 )}
 
                 {/* User Dropdown / Logout */}
-                <div className="flex items-center space-x-2 pl-2 border-l border-slate-800">
-                  <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-amber-400">
+                <div className="flex items-center space-x-1 pl-1.5 border-l border-slate-800">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-amber-400">
                     {user.username.slice(0, 2).toUpperCase()}
                   </div>
                   <button
@@ -445,18 +493,18 @@ export default function Home() {
                     title="Log Out"
                     className="p-1.5 text-slate-400 hover:text-rose-400 transition"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <button
                   onClick={() => {
                     setAuthMode("login");
                     setShowAuthModal(true);
                   }}
-                  className="text-xs font-semibold px-4 py-2 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
                 >
                   Log In
                 </button>
@@ -465,9 +513,9 @@ export default function Home() {
                     setAuthMode("register");
                     setShowAuthModal(true);
                   }}
-                  className="text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 transition transform active:scale-95 flex items-center gap-1"
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition transform active:scale-95 flex items-center gap-1"
                 >
-                  <Gift className="w-3.5 h-3.5" /> Sign Up (৳100 Free)
+                  <Gift className="w-3 h-3" /> Sign Up (+৳100)
                 </button>
               </div>
             )}
@@ -475,26 +523,26 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 space-y-8">
+      {/* Main Content Area - has pb-24 for mobile bottom navigation dock */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-4 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8 pb-24 md:pb-8">
         {/* Banner Section */}
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#121a30] via-[#0d1424] to-[#181128] border border-amber-500/20 p-6 md:p-8 shadow-2xl">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#121a30] via-[#0d1424] to-[#181128] border border-amber-500/20 p-5 sm:p-8 shadow-2xl">
           <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10 max-w-2xl space-y-4">
-            <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-semibold text-amber-400">
+          <div className="relative z-10 max-w-2xl space-y-3 sm:space-y-4">
+            <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-semibold text-amber-400">
               <Sparkles className="w-3.5 h-3.5" /> ৳10,000 BDT Welcome Match + Instant bKash & Nagad
             </div>
-            <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight tracking-tight">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight tracking-tight">
               BANGLADESH&apos;S PREMIER <br />
               <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
                 ONLINE CASINO & GAMES
               </span>
             </h1>
-            <p className="text-sm sm:text-base text-slate-300">
+            <p className="text-xs sm:text-sm text-slate-300">
               Play Aviator Crash, 777 Slots, Teen Patti & Color Prediction. Deposit & withdraw seamlessly in BDT with 0% fee.
             </p>
 
-            <div className="flex flex-wrap gap-3 pt-2">
+            <div className="flex flex-wrap gap-2.5 pt-1">
               <button
                 onClick={() => {
                   if (!user) {
@@ -504,9 +552,9 @@ export default function Home() {
                     setSelectedGame("crash");
                   }
                 }}
-                className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-extrabold px-6 py-3 rounded-xl shadow-lg shadow-amber-500/30 hover:brightness-110 transition flex items-center gap-2 text-sm"
+                className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/30 hover:brightness-110 transition flex items-center gap-2 text-xs sm:text-sm active:scale-95"
               >
-                <Play className="w-4 h-4 fill-current" /> Play Aviator Crash
+                <Play className="w-3.5 h-3.5 fill-current" /> Play Aviator Crash
               </button>
               <button
                 onClick={() => {
@@ -518,46 +566,46 @@ export default function Home() {
                     setWalletTab("deposit");
                   }
                 }}
-                className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl transition text-sm flex items-center gap-2"
+                className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold px-4 py-2.5 rounded-xl transition text-xs sm:text-sm flex items-center gap-1.5"
               >
-                <Coins className="w-4 h-4 text-emerald-400" /> Instant bKash / Nagad Deposit
+                <Coins className="w-3.5 h-3.5 text-emerald-400" /> bKash / Nagad Deposit
               </button>
             </div>
           </div>
 
           {/* Payment Badges on Banner */}
-          <div className="mt-6 pt-6 border-t border-slate-800/80 flex flex-wrap items-center gap-4 text-xs text-slate-400">
-            <span className="font-semibold text-slate-300">Supported in Bangladesh:</span>
-            <div className="flex items-center gap-2 bg-pink-950/40 border border-pink-700/40 text-pink-300 px-3 py-1 rounded-lg font-bold">
-              <span>📱 bKash (বিকাশ)</span>
-            </div>
-            <div className="flex items-center gap-2 bg-orange-950/40 border border-orange-700/40 text-orange-300 px-3 py-1 rounded-lg font-bold">
-              <span>⚡ Nagad (নগদ)</span>
-            </div>
-            <div className="flex items-center gap-2 bg-purple-950/40 border border-purple-700/40 text-purple-300 px-3 py-1 rounded-lg font-bold">
-              <span>🚀 Rocket (রকেট)</span>
-            </div>
-            <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-700/40 text-blue-300 px-3 py-1 rounded-lg font-bold">
-              <span>🔷 Upay (উপায়)</span>
-            </div>
+          <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="font-semibold text-slate-300 text-[11px]">Bangladesh Mobile Banking:</span>
+            <span className="bg-pink-950/40 border border-pink-700/40 text-pink-300 px-2 py-0.5 rounded-lg font-bold text-[11px]">
+              📱 bKash (বিকাশ)
+            </span>
+            <span className="bg-orange-950/40 border border-orange-700/40 text-orange-300 px-2 py-0.5 rounded-lg font-bold text-[11px]">
+              ⚡ Nagad (নগদ)
+            </span>
+            <span className="bg-purple-950/40 border border-purple-700/40 text-purple-300 px-2 py-0.5 rounded-lg font-bold text-[11px]">
+              🚀 Rocket (রকেট)
+            </span>
+            <span className="bg-blue-950/40 border border-blue-700/40 text-blue-300 px-2 py-0.5 rounded-lg font-bold text-[11px]">
+              🔷 Upay (উপায়)
+            </span>
           </div>
         </section>
 
         {/* Categories Bar */}
-        <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-800/60">
+        <div id="games-section" className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-800/60">
           {[
-            { id: "all", name: "All Games", icon: <Layers className="w-4 h-4" /> },
-            { id: "crash", name: "Aviator Crash", icon: <TrendingUp className="w-4 h-4 text-rose-400" /> },
-            { id: "slots", name: "Lucky Slots", icon: <Coins className="w-4 h-4 text-amber-400" /> },
-            { id: "cards", name: "Cards & Teen Patti", icon: <Sparkles className="w-4 h-4 text-blue-400" /> },
-            { id: "dice", name: "Dice", icon: <Dices className="w-4 h-4 text-emerald-400" /> },
-            { id: "prediction", name: "Color Prediction", icon: <Zap className="w-4 h-4 text-purple-400" /> },
-            { id: "jackpot", name: "Mega Jackpot", icon: <Trophy className="w-4 h-4 text-yellow-400" /> },
+            { id: "all", name: "All Games", icon: <Layers className="w-3.5 h-3.5" /> },
+            { id: "crash", name: "Aviator Crash", icon: <TrendingUp className="w-3.5 h-3.5 text-rose-400" /> },
+            { id: "slots", name: "Lucky Slots", icon: <Coins className="w-3.5 h-3.5 text-amber-400" /> },
+            { id: "cards", name: "Teen Patti & Cards", icon: <Sparkles className="w-3.5 h-3.5 text-blue-400" /> },
+            { id: "dice", name: "Dice", icon: <Dices className="w-3.5 h-3.5 text-emerald-400" /> },
+            { id: "prediction", name: "Color Prediction", icon: <Zap className="w-3.5 h-3.5 text-purple-400" /> },
+            { id: "jackpot", name: "Mega Jackpot", icon: <Trophy className="w-3.5 h-3.5 text-yellow-400" /> },
           ].map((cat) => (
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
                 activeCategory === cat.id
                   ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
                   : "bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800"
@@ -572,43 +620,43 @@ export default function Home() {
         {/* Game Grid */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-white">
               <Flame className="w-5 h-5 text-amber-400" /> Featured Casino Games
             </h2>
-            <span className="text-xs text-slate-400">Total {filteredGames.length} Games Available</span>
+            <span className="text-xs text-slate-400">{filteredGames.length} Games Ready</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
             {filteredGames.map((game) => (
               <div
                 key={game.slug}
-                className="group relative bg-gradient-to-b from-[#101728] to-[#0c1220] rounded-2xl border border-slate-800 hover:border-amber-500/50 p-4 transition duration-300 hover:shadow-xl hover:shadow-amber-500/10 flex flex-col justify-between"
+                className="group relative bg-gradient-to-b from-[#101728] to-[#0c1220] rounded-2xl border border-slate-800 hover:border-amber-500/50 p-3 sm:p-4 transition duration-300 hover:shadow-xl hover:shadow-amber-500/10 flex flex-col justify-between"
               >
                 <div>
                   {/* Game Card Header / Icon */}
-                  <div className="h-40 rounded-xl bg-gradient-to-tr from-[#162038] to-[#1e2a4a] flex items-center justify-center relative overflow-hidden mb-3 border border-slate-800">
-                    <span className="text-6xl filter drop-shadow group-hover:scale-110 transition duration-300">
+                  <div className="h-32 sm:h-40 rounded-xl bg-gradient-to-tr from-[#162038] to-[#1e2a4a] flex items-center justify-center relative overflow-hidden mb-2.5 border border-slate-800">
+                    <span className="text-5xl sm:text-6xl filter drop-shadow group-hover:scale-110 transition duration-300">
                       {game.image || "🎰"}
                     </span>
-                    <div className="absolute top-2 right-2 bg-slate-950/80 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-amber-400 border border-amber-500/30">
+                    <div className="absolute top-2 right-2 bg-slate-950/80 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-amber-400 border border-amber-500/30">
                       RTP {game.rtp}%
                     </div>
                     {game.jackpotAmount && (
-                      <div className="absolute bottom-2 left-2 bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+                      <div className="absolute bottom-1.5 left-1.5 bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] font-black uppercase tracking-wider">
                         ৳{game.jackpotAmount.toLocaleString()} JACKPOT
                       </div>
                     )}
                   </div>
 
-                  <h3 className="font-bold text-base text-white group-hover:text-amber-400 transition">
+                  <h3 className="font-bold text-sm sm:text-base text-white group-hover:text-amber-400 transition truncate">
                     {game.name}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-1 line-clamp-2">{game.description}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2 hidden sm:block">{game.description}</p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                  <div className="text-[11px] text-slate-400">
-                    Min Bet: <span className="text-amber-400 font-bold">৳{game.minBet}</span>
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                  <div className="text-[10px] sm:text-[11px] text-slate-400">
+                    Min: <span className="text-amber-400 font-bold">৳{game.minBet}</span>
                   </div>
                   <button
                     onClick={() => {
@@ -619,9 +667,9 @@ export default function Home() {
                         setSelectedGame(game.slug);
                       }
                     }}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-md shadow-amber-500/20 transition transform active:scale-95"
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1 sm:px-4 sm:py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-md shadow-amber-500/20 transition transform active:scale-95"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Play
+                    <Play className="w-3 h-3 fill-current" /> Play
                   </button>
                 </div>
               </div>
@@ -630,14 +678,14 @@ export default function Home() {
         </section>
 
         {/* Bangladesh Local VIP & Bonus Showcase */}
-        <section className="bg-gradient-to-r from-slate-900 via-[#10182b] to-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2">
+        <section className="bg-gradient-to-r from-slate-900 via-[#10182b] to-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="space-y-1.5">
             <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
               🇧🇩 Bangladesh Exclusive Promotion
             </span>
-            <h3 className="text-2xl font-black text-white">Daily 20% Reload Bonus on bKash & Nagad</h3>
+            <h3 className="text-xl sm:text-2xl font-black text-white">Daily 20% Reload Bonus on bKash & Nagad</h3>
             <p className="text-xs text-slate-400 max-w-xl">
-              Deposit minimum ৳200 BDT everyday and automatically receive up to ৳2,000 BDT reload bonus into your wallet. No wagering lock on main balance.
+              Deposit minimum ৳200 BDT everyday and automatically receive up to ৳2,000 BDT reload bonus into your wallet.
             </p>
           </div>
           <button
@@ -650,7 +698,7 @@ export default function Home() {
                 setWalletTab("deposit");
               }
             }}
-            className="shrink-0 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-6 py-3 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition"
+            className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition text-center"
           >
             Claim Daily Bonus ৳
           </button>
@@ -658,18 +706,146 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-[#060911] px-4 py-8 text-center text-xs text-slate-500 space-y-3">
-        <div className="flex items-center justify-center space-x-2 text-slate-400 font-semibold">
+      <footer className="border-t border-slate-800/80 bg-[#060911] px-4 py-6 text-center text-xs text-slate-500 space-y-2 pb-24 md:pb-6">
+        <div className="flex items-center justify-center space-x-2 text-slate-400 font-semibold text-[11px]">
           <span>LuckHub BD</span>
           <span>•</span>
           <span>18+ Play Responsibly</span>
           <span>•</span>
           <span>Bangladesh Licensed</span>
         </div>
-        <p>© 2026 LuckHub Bangladesh. All Rights Reserved. Currency: Bangladeshi Taka (৳ BDT).</p>
+        <p className="text-[10px]">© 2026 LuckHub Bangladesh. Currency: Bangladeshi Taka (৳ BDT).</p>
       </footer>
 
-      {/* ======================= PLAYABLE GAME MODALS ======================= */}
+      {/* ========================================================================= */}
+      {/* MOBILE STICKY BOTTOM APP NAVIGATION BAR (Native App Feel)                 */}
+      {/* ========================================================================= */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0a0f1d]/95 backdrop-blur-lg border-t border-slate-800/90 px-3 py-1.5 shadow-2xl flex items-center justify-around text-center select-none">
+        {/* 1. Home */}
+        <button
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            setSelectedGame(null);
+          }}
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-amber-400 transition"
+        >
+          <HomeIcon className="w-5 h-5" />
+          <span className="text-[10px] font-bold">হোম</span>
+        </button>
+
+        {/* 2. Games */}
+        <button
+          onClick={() => {
+            document.getElementById("games-section")?.scrollIntoView({ behavior: "smooth" });
+          }}
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-amber-400 transition"
+        >
+          <Gamepad2 className="w-5 h-5" />
+          <span className="text-[10px] font-bold">গেমস</span>
+        </button>
+
+        {/* 3. Center Deposit Glow Button */}
+        <button
+          onClick={() => {
+            if (!user) {
+              setAuthMode("login");
+              setShowAuthModal(true);
+            } else {
+              setShowWalletModal(true);
+              setWalletTab("deposit");
+            }
+          }}
+          className="-mt-5 bg-gradient-to-tr from-emerald-500 via-emerald-400 to-green-500 text-slate-950 p-3 rounded-full shadow-lg shadow-emerald-500/40 border-2 border-emerald-300 flex flex-col items-center justify-center transform active:scale-95 transition"
+        >
+          <Wallet className="w-5 h-5 stroke-[2.5]" />
+          <span className="text-[8px] font-black uppercase mt-0.5">+100%</span>
+        </button>
+
+        {/* 4. Promos */}
+        <button
+          onClick={() => setShowPromoModal(true)}
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-amber-400 transition"
+        >
+          <Gift className="w-5 h-5 text-amber-400" />
+          <span className="text-[10px] font-bold">অফার</span>
+        </button>
+
+        {/* 5. Profile / Login */}
+        <button
+          onClick={() => {
+            if (!user) {
+              setAuthMode("login");
+              setShowAuthModal(true);
+            } else {
+              setShowWalletModal(true);
+              setWalletTab("history");
+            }
+          }}
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-amber-400 transition"
+        >
+          <User className="w-5 h-5" />
+          <span className="text-[10px] font-bold">{user ? "প্রোফাইল" : "লগইন"}</span>
+        </button>
+      </nav>
+
+      {/* ======================= PROMOTIONS MODAL ======================= */}
+      {showPromoModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-md rounded-2xl p-5 shadow-2xl relative max-h-[90dvh] overflow-y-auto">
+            <button
+              onClick={() => setShowPromoModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+              <Gift className="w-6 h-6 text-amber-400" />
+              <div>
+                <h3 className="font-bold text-lg text-white">LuckHub BD Promotions</h3>
+                <p className="text-xs text-slate-400">Exclusive bonuses for Bangladeshi players</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { title: "🎉 Welcome Bonus", desc: "Get ৳100 BDT free on registration immediately", tag: "FREE ৳100" },
+                { title: "💰 First Deposit 100% Match", desc: "Deposit via bKash/Nagad and get 100% extra up to ৳10,000", tag: "+100%" },
+                { title: "🔄 Daily Reload Bonus", desc: "20% daily bonus up to ৳2,000 BDT every single day", tag: "DAILY" },
+                { title: "👥 Refer & Earn", desc: "Earn ৳50 BDT cash for every friend who signs up with your link", tag: "৳50 CASH" },
+              ].map((promo, idx) => (
+                <div key={idx} className="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-1">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-white text-xs">{promo.title}</h4>
+                    <span className="bg-amber-500/20 text-amber-400 text-[10px] font-black px-2 py-0.5 rounded">
+                      {promo.tag}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">{promo.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowPromoModal(false);
+                if (!user) {
+                  setAuthMode("register");
+                  setShowAuthModal(true);
+                } else {
+                  setShowWalletModal(true);
+                  setWalletTab("deposit");
+                }
+              }}
+              className="mt-4 w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs"
+            >
+              Claim Bonuses Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================= PLAYABLE GAME MODAL ======================= */}
       {selectedGame && user && (
         <GameModal
           slug={selectedGame}
@@ -685,8 +861,8 @@ export default function Home() {
 
       {/* ======================= WALLET MODAL ======================= */}
       {showWalletModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl relative max-h-[92dvh] overflow-y-auto">
             <button
               onClick={() => {
                 setShowWalletModal(false);
@@ -702,9 +878,9 @@ export default function Home() {
                 <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-white">LuckHub Wallet (Bangladesh)</h3>
+                <h3 className="font-bold text-base sm:text-lg text-white">LuckHub Wallet (Bangladesh)</h3>
                 <p className="text-xs text-slate-400">
-                  Current Balance: <span className="text-amber-400 font-bold">৳{user?.balance.toLocaleString()} BDT</span>
+                  Current Balance: <span className="text-amber-400 font-bold font-mono">৳{user?.balance.toLocaleString()} BDT</span>
                 </p>
               </div>
             </div>
@@ -754,7 +930,7 @@ export default function Home() {
 
             {/* DEPOSIT TAB */}
             {walletTab === "deposit" && (
-              <form onSubmit={handleDepositSubmit} className="space-y-4">
+              <form onSubmit={handleDepositSubmit} className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     Select Payment Method:
@@ -822,7 +998,7 @@ export default function Home() {
                         onClick={() => setDepositAmount(amt)}
                         className={`py-1.5 rounded-lg text-xs font-bold border transition ${
                           depositAmount === amt
-                            ? "bg-amber-500 text-slate-950 border-amber-400"
+                            ? "bg-amber-500 text-slate-950 border-amber-400 font-extrabold"
                             : "border-slate-800 text-slate-300 hover:bg-slate-800"
                         }`}
                       >
@@ -862,7 +1038,7 @@ export default function Home() {
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition"
+                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition active:scale-95"
                 >
                   Submit Deposit Request (৳{depositAmount.toLocaleString()} BDT)
                 </button>
@@ -871,7 +1047,7 @@ export default function Home() {
 
             {/* WITHDRAW TAB */}
             {walletTab === "withdraw" && (
-              <form onSubmit={handleWithdrawSubmit} className="space-y-4">
+              <form onSubmit={handleWithdrawSubmit} className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     Select Withdrawal Method:
@@ -933,7 +1109,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={(user?.balance || 0) < withdrawAmount}
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition"
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 disabled:opacity-50 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition active:scale-95"
                 >
                   Request Withdrawal (৳{withdrawAmount.toLocaleString()} BDT)
                 </button>
@@ -956,7 +1132,7 @@ export default function Home() {
                           {tx.type} ({tx.method})
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {new Date(tx.createdAt).toLocaleString()}
+                          {new Date(tx.createdAt).toLocaleDateString()}
                         </div>
                       </div>
                       <div className="text-right">
@@ -990,8 +1166,8 @@ export default function Home() {
 
       {/* ======================= AUTH MODAL ======================= */}
       {showAuthModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl relative max-h-[92dvh] overflow-y-auto">
             <button
               onClick={() => {
                 setShowAuthModal(false);
@@ -1002,8 +1178,8 @@ export default function Home() {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="text-center space-y-1 mb-5">
-              <h3 className="font-extrabold text-xl text-white">
+            <div className="text-center space-y-1 mb-4">
+              <h3 className="font-extrabold text-lg sm:text-xl text-white">
                 {authMode === "login" ? "Welcome Back to LuckHub BD" : "Create LuckHub BD Account"}
               </h3>
               <p className="text-xs text-slate-400">
@@ -1014,13 +1190,13 @@ export default function Home() {
             </div>
 
             {authError && (
-              <div className="mb-4 p-2.5 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs text-center font-medium">
+              <div className="mb-3.5 p-2 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs text-center font-medium">
                 {authError}
               </div>
             )}
 
             {authMode === "login" ? (
-              <form onSubmit={(e) => handleLogin(e)} className="space-y-3.5">
+              <form onSubmit={(e) => handleLogin(e)} className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
                     Email or Phone:
@@ -1051,13 +1227,13 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition"
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition active:scale-95"
                 >
                   {authLoading ? "Logging in..." : "Log In"}
                 </button>
 
                 {/* 1-Click Test Logins */}
-                <div className="pt-2 border-t border-slate-800 space-y-2">
+                <div className="pt-2 border-t border-slate-800 space-y-1.5">
                   <span className="block text-[11px] text-slate-400 text-center font-semibold">
                     1-Click Instant Demo Access:
                   </span>
@@ -1079,7 +1255,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="text-center text-xs text-slate-400 pt-2">
+                <div className="text-center text-xs text-slate-400 pt-1">
                   Don&apos;t have an account?{" "}
                   <button
                     type="button"
@@ -1148,19 +1324,19 @@ export default function Home() {
                   />
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
                   🎁 <strong>Welcome Bonus:</strong> You will receive ৳100 BDT in your wallet immediately upon signing up!
                 </div>
 
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition"
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition active:scale-95"
                 >
                   {authLoading ? "Registering..." : "Create Account & Claim ৳100"}
                 </button>
 
-                <div className="text-center text-xs text-slate-400 pt-2">
+                <div className="text-center text-xs text-slate-400 pt-1">
                   Already have an account?{" "}
                   <button
                     type="button"
@@ -1181,8 +1357,8 @@ export default function Home() {
 
       {/* ======================= ADMIN MODAL ======================= */}
       {showAdminModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-2xl rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-[#0f172a] border border-amber-500/30 w-full max-w-2xl rounded-2xl p-5 sm:p-6 shadow-2xl relative max-h-[90dvh] overflow-y-auto">
             <button
               onClick={() => setShowAdminModal(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white"
@@ -1193,29 +1369,29 @@ export default function Home() {
             <div className="flex items-center gap-2 mb-4">
               <Shield className="w-6 h-6 text-amber-400" />
               <div>
-                <h3 className="font-bold text-lg text-white">LuckHub BD Casino Admin Dashboard</h3>
+                <h3 className="font-bold text-base sm:text-lg text-white">LuckHub BD Casino Admin Dashboard</h3>
                 <p className="text-xs text-slate-400">Manage Users, BDT Deposits, and Game Settings</p>
               </div>
             </div>
 
             {/* KPI Cards */}
             {adminStats && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-5">
+                <div className="bg-slate-900 border border-slate-800 p-2.5 sm:p-3 rounded-xl">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Users</div>
-                  <div className="text-lg font-black text-white">{adminStats.totalUsers}</div>
+                  <div className="text-base sm:text-lg font-black text-white">{adminStats.totalUsers}</div>
                 </div>
-                <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
+                <div className="bg-slate-900 border border-slate-800 p-2.5 sm:p-3 rounded-xl">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Deposits</div>
-                  <div className="text-lg font-black text-emerald-400">৳{adminStats.totalDeposits.toLocaleString()}</div>
+                  <div className="text-base sm:text-lg font-black text-emerald-400">৳{adminStats.totalDeposits.toLocaleString()}</div>
                 </div>
-                <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
+                <div className="bg-slate-900 border border-slate-800 p-2.5 sm:p-3 rounded-xl">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Bets</div>
-                  <div className="text-lg font-black text-amber-400">{adminStats.totalBets}</div>
+                  <div className="text-base sm:text-lg font-black text-amber-400">{adminStats.totalBets}</div>
                 </div>
-                <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
+                <div className="bg-slate-900 border border-slate-800 p-2.5 sm:p-3 rounded-xl">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Gross Revenue</div>
-                  <div className="text-lg font-black text-yellow-400">৳{adminStats.totalRevenue.toLocaleString()}</div>
+                  <div className="text-base sm:text-lg font-black text-yellow-400">৳{adminStats.totalRevenue.toLocaleString()}</div>
                 </div>
               </div>
             )}
@@ -1227,20 +1403,20 @@ export default function Home() {
               {adminUsers.map((u) => (
                 <div
                   key={u._id}
-                  className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs"
+                  className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center justify-between text-xs"
                 >
                   <div>
-                    <div className="font-bold text-white flex items-center gap-2">
+                    <div className="font-bold text-white flex items-center gap-1.5">
                       {u.username}
-                      <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.2 rounded font-normal">
+                      <span className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.2 rounded font-normal">
                         {u.role}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-400">{u.email} • {u.phone || "No phone"}</div>
+                    <div className="text-[10px] text-slate-400">{u.email} • {u.phone || "No phone"}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-extrabold text-amber-400">৳{u.balance.toLocaleString()} BDT</div>
-                    <span className="text-[10px] text-emerald-400 uppercase font-bold">{u.status}</span>
+                    <span className="text-[9px] text-emerald-400 uppercase font-bold">{u.status}</span>
                   </div>
                 </div>
               ))}
@@ -1253,7 +1429,7 @@ export default function Home() {
 }
 
 // =========================================================================
-// INTERACTIVE GAME MODAL COMPONENT (Slots, Crash, Dice, Color, Teen Patti, Jackpot)
+// INTERACTIVE GAME MODAL COMPONENT (Mobile-Optimized Touch Controls)
 // =========================================================================
 function GameModal({
   slug,
@@ -1298,7 +1474,6 @@ function GameModal({
   // Jackpot state
   const [jackpotSlice, setJackpotSlice] = useState<string | null>(null);
 
-  // Clean up crash ticker
   useEffect(() => {
     return () => {
       if (crashIntervalRef.current) clearInterval(crashIntervalRef.current);
@@ -1316,7 +1491,6 @@ function GameModal({
     setIsPlaying(true);
     setGameResult(null);
 
-    // Visual reel flutter
     const flutter = setInterval(() => {
       const syms = ["🍒", "🍋", "🍊", "🍇", "⭐", "💎", "7️⃣", "🔔"];
       setReels([
@@ -1345,7 +1519,7 @@ function GameModal({
         setIsSpinning(false);
         setIsPlaying(false);
         onBalanceUpdate(data.balance);
-      }, 1200);
+      }, 1000);
     } catch (err: any) {
       clearInterval(flutter);
       setIsSpinning(false);
@@ -1598,12 +1772,12 @@ function GameModal({
   const diceMultiplier = parseFloat((98 / winChance).toFixed(2));
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-      <div className="bg-gradient-to-b from-[#10172a] to-[#090d18] border border-amber-500/40 w-full max-w-2xl rounded-3xl p-6 shadow-2xl relative text-slate-100">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-6 overflow-y-auto">
+      <div className="bg-gradient-to-b from-[#10172a] to-[#090d18] border border-amber-500/40 w-full max-w-2xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl relative text-slate-100 max-h-[92dvh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl sm:text-3xl">
               {slug === "slots" && "🎰"}
               {slug === "crash" && "🚀"}
               {slug === "dice" && "🎲"}
@@ -1613,37 +1787,37 @@ function GameModal({
               {slug === "jackpot" && "🏆"}
             </span>
             <div>
-              <h3 className="font-extrabold text-xl capitalize text-white">
+              <h3 className="font-extrabold text-base sm:text-lg capitalize text-white">
                 {slug.replace("-", " ")}
               </h3>
-              <p className="text-xs text-slate-400">
-                Wallet: <span className="text-amber-400 font-bold">৳{user.balance.toLocaleString()} BDT</span>
+              <p className="text-[11px] text-slate-400">
+                Wallet: <span className="text-amber-400 font-bold font-mono">৳{user.balance.toLocaleString()} BDT</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
+            className="p-1 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {errorMessage && (
-          <div className="mb-4 p-2.5 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs font-semibold text-center">
+          <div className="mb-3 p-2 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs font-semibold text-center">
             {errorMessage}
           </div>
         )}
 
         {/* ================= GAME VIEW: SLOTS ================= */}
         {slug === "slots" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b101c] border-2 border-amber-500/30 rounded-2xl p-6 shadow-inner flex flex-col items-center justify-center">
-              <div className="flex items-center justify-center space-x-4 mb-4">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-[#0b101c] border-2 border-amber-500/30 rounded-2xl p-4 sm:p-6 shadow-inner flex flex-col items-center justify-center">
+              <div className="flex items-center justify-center space-x-2.5 sm:space-x-4 mb-3">
                 {reels.map((symbol, idx) => (
                   <div
                     key={idx}
-                    className="w-24 h-28 sm:w-28 sm:h-32 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/50 rounded-2xl flex items-center justify-center text-5xl shadow-xl shadow-amber-500/10 font-bold"
+                    className="w-20 h-24 sm:w-28 sm:h-32 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-500/50 rounded-2xl flex items-center justify-center text-4xl sm:text-5xl shadow-xl shadow-amber-500/10 font-bold"
                   >
                     {symbol}
                   </div>
@@ -1652,7 +1826,7 @@ function GameModal({
 
               {gameResult && (
                 <div
-                  className={`text-center font-extrabold text-sm sm:text-base py-1 px-4 rounded-full ${
+                  className={`text-center font-extrabold text-xs sm:text-sm py-1 px-3 sm:px-4 rounded-full ${
                     gameResult.isWin
                       ? "bg-emerald-950 border border-emerald-500 text-emerald-300 animate-bounce"
                       : "bg-slate-800 text-slate-400"
@@ -1666,15 +1840,15 @@ function GameModal({
             </div>
 
             {/* Bet & Spin Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[10, 50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
                     disabled={isSpinning}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -1688,7 +1862,7 @@ function GameModal({
               <button
                 onClick={playSlots}
                 disabled={isSpinning}
-                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:brightness-110 disabled:opacity-50 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-amber-500/30 transition transform active:scale-95 flex items-center justify-center gap-2"
+                className="w-full sm:w-44 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:brightness-110 disabled:opacity-50 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <Sparkles className="w-4 h-4 fill-current" />
                 {isSpinning ? "SPINNING..." : "SPIN 🎰"}
@@ -1699,12 +1873,11 @@ function GameModal({
 
         {/* ================= GAME VIEW: CRASH (AVIATOR) ================= */}
         {slug === "crash" && (
-          <div className="space-y-6">
-            <div className="h-64 bg-[#0a0f1d] border border-slate-800 rounded-2xl p-6 relative flex flex-col items-center justify-center overflow-hidden">
-              {/* Rocket & Multiplier Display */}
-              <div className="text-center space-y-2 z-10">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="h-56 sm:h-64 bg-[#0a0f1d] border border-slate-800 rounded-2xl p-4 relative flex flex-col items-center justify-center overflow-hidden">
+              <div className="text-center space-y-1.5 z-10">
                 <div
-                  className={`text-6xl font-black font-mono tracking-tight transition ${
+                  className={`text-5xl sm:text-6xl font-black font-mono tracking-tight transition ${
                     crashState === "crashed"
                       ? "text-rose-500"
                       : crashState === "cashed_out"
@@ -1737,20 +1910,18 @@ function GameModal({
                 </div>
               </div>
 
-              {/* Background Graph Lines */}
-              <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-rose-500/10 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-rose-500/10 via-transparent to-transparent pointer-events-none" />
             </div>
 
-            {/* Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[10, 50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
                     disabled={crashState === "running"}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -1764,14 +1935,14 @@ function GameModal({
               {crashState === "running" ? (
                 <button
                   onClick={cashoutCrash}
-                  className="w-full sm:w-56 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-emerald-500/30 transition transform active:scale-95 animate-pulse"
+                  className="w-full sm:w-56 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-emerald-500/30 transition active:scale-95 animate-pulse"
                 >
                   CASH OUT (৳{Math.round(betAmount * crashMultiplier)} BDT)
                 </button>
               ) : (
                 <button
                   onClick={startCrash}
-                  className="w-full sm:w-48 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white font-black py-3 rounded-2xl text-sm shadow-xl shadow-rose-500/30 transition transform active:scale-95"
+                  className="w-full sm:w-48 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 text-white font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-rose-500/30 transition active:scale-95"
                 >
                   LAUNCH ROCKET 🚀
                 </button>
@@ -1782,9 +1953,9 @@ function GameModal({
 
         {/* ================= GAME VIEW: DICE ================= */}
         {slug === "dice" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center space-y-4">
-              <div className="text-5xl font-black text-amber-400 font-mono">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center space-y-3">
+              <div className="text-4xl sm:text-5xl font-black text-amber-400 font-mono">
                 {gameResult ? gameResult.roll : diceTarget}
               </div>
 
@@ -1800,7 +1971,6 @@ function GameModal({
                 </div>
               )}
 
-              {/* Slider */}
               <div className="w-full max-w-md space-y-2">
                 <input
                   type="range"
@@ -1808,20 +1978,19 @@ function GameModal({
                   max="95"
                   value={diceTarget}
                   onChange={(e) => setDiceTarget(parseInt(e.target.value))}
-                  className="w-full accent-amber-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
+                  className="w-full accent-amber-500 h-2.5 bg-slate-800 rounded-lg cursor-pointer"
                 />
-                <div className="flex justify-between text-xs text-slate-400">
+                <div className="flex justify-between text-[11px] text-slate-400">
                   <span>Target: {diceTarget}</span>
                   <span>Win Chance: {winChance}%</span>
                   <span>Multiplier: {diceMultiplier}x</span>
                 </div>
               </div>
 
-              {/* Over / Under selector */}
-              <div className="flex space-x-3">
+              <div className="flex space-x-2">
                 <button
                   onClick={() => setDicePrediction("over")}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
                     dicePrediction === "over"
                       ? "bg-emerald-500 text-slate-950 border-emerald-400"
                       : "border-slate-800 text-slate-400"
@@ -1831,7 +2000,7 @@ function GameModal({
                 </button>
                 <button
                   onClick={() => setDicePrediction("under")}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
                     dicePrediction === "under"
                       ? "bg-emerald-500 text-slate-950 border-emerald-400"
                       : "border-slate-800 text-slate-400"
@@ -1842,14 +2011,14 @@ function GameModal({
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[10, 50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -1863,7 +2032,7 @@ function GameModal({
               <button
                 onClick={playDice}
                 disabled={isPlaying}
-                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-amber-500/30 transition transform active:scale-95"
+                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition active:scale-95"
               >
                 ROLL DICE 🎲
               </button>
@@ -1873,11 +2042,11 @@ function GameModal({
 
         {/* ================= GAME VIEW: COLOR PREDICTION ================= */}
         {slug === "color" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center space-y-4">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center space-y-3">
               <div className="text-xs text-slate-400">Choose your lucky color for the next round:</div>
 
-              <div className="flex space-x-4">
+              <div className="flex space-x-3">
                 {[
                   { id: "red", name: "Red (2x)", bg: "bg-rose-600 hover:bg-rose-500" },
                   { id: "violet", name: "Violet (9x)", bg: "bg-purple-600 hover:bg-purple-500" },
@@ -1886,7 +2055,7 @@ function GameModal({
                   <button
                     key={c.id}
                     onClick={() => setColorPick(c.id as any)}
-                    className={`px-6 py-4 rounded-2xl text-xs font-black text-white border-2 transition ${c.bg} ${
+                    className={`px-4 sm:px-6 py-3 sm:py-4 rounded-2xl text-xs font-black text-white border-2 transition ${c.bg} ${
                       colorPick === c.id
                         ? "border-amber-400 scale-105 shadow-xl shadow-amber-500/20"
                         : "border-transparent opacity-85"
@@ -1915,14 +2084,14 @@ function GameModal({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[10, 50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -1936,7 +2105,7 @@ function GameModal({
               <button
                 onClick={playColor}
                 disabled={isPlaying}
-                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-amber-500/30 transition transform active:scale-95"
+                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition active:scale-95"
               >
                 PREDICT COLOR 🎨
               </button>
@@ -1946,16 +2115,15 @@ function GameModal({
 
         {/* ================= GAME VIEW: TEEN PATTI ================= */}
         {slug === "teen-patti" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-6 space-y-4">
-              {/* Dealer Cards */}
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-3">
               <div>
                 <span className="text-xs font-bold text-slate-400">Dealer&apos;s Cards:</span>
-                <div className="flex space-x-3 mt-1.5">
+                <div className="flex space-x-2 mt-1">
                   {(dealerCards.length > 0 ? dealerCards : [{}, {}, {}]).map((c, i) => (
                     <div
                       key={i}
-                      className="w-16 h-22 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center text-sm font-black shadow"
+                      className="w-14 h-20 sm:w-16 sm:h-22 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center text-sm font-black shadow"
                     >
                       {c.rank ? `${c.rank}${c.suit}` : "🂠"}
                     </div>
@@ -1963,14 +2131,13 @@ function GameModal({
                 </div>
               </div>
 
-              {/* Player Cards */}
               <div>
                 <span className="text-xs font-bold text-amber-400">Your Cards:</span>
-                <div className="flex space-x-3 mt-1.5">
+                <div className="flex space-x-2 mt-1">
                   {(playerCards.length > 0 ? playerCards : [{}, {}, {}]).map((c, i) => (
                     <div
                       key={i}
-                      className="w-16 h-22 bg-white text-slate-950 border-2 border-amber-500 rounded-xl flex items-center justify-center text-base font-black shadow-lg"
+                      className="w-14 h-20 sm:w-16 sm:h-22 bg-white text-slate-950 border-2 border-amber-500 rounded-xl flex items-center justify-center text-base font-black shadow-lg"
                     >
                       {c.rank ? `${c.rank}${c.suit}` : "🂠"}
                     </div>
@@ -1991,14 +2158,14 @@ function GameModal({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[20, 50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -2012,7 +2179,7 @@ function GameModal({
               <button
                 onClick={playTeenPatti}
                 disabled={isPlaying}
-                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-amber-500/30 transition transform active:scale-95"
+                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition active:scale-95"
               >
                 DEAL CARDS 🃏
               </button>
@@ -2022,10 +2189,10 @@ function GameModal({
 
         {/* ================= GAME VIEW: RUMMY ================= */}
         {slug === "rummy" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-6 text-center space-y-4">
-              <div className="text-5xl">♠️ ♥️ ♦️ ♣️</div>
-              <h4 className="text-base font-bold text-white">Classic Fast Rummy Showdown</h4>
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-[#0b101c] border border-slate-800 rounded-2xl p-4 sm:p-6 text-center space-y-3">
+              <div className="text-4xl sm:text-5xl">♠️ ♥️ ♦️ ♣️</div>
+              <h4 className="text-sm sm:text-base font-bold text-white">Classic Fast Rummy Showdown</h4>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
                 Win 2.0x your BDT bet on matching valid set sequences against the table dealer.
               </p>
@@ -2043,14 +2210,14 @@ function GameModal({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[20, 50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -2064,7 +2231,7 @@ function GameModal({
               <button
                 onClick={playRummy}
                 disabled={isPlaying}
-                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-amber-500/30 transition"
+                className="w-full sm:w-48 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition active:scale-95"
               >
                 PLAY RUMMY ♠️
               </button>
@@ -2074,14 +2241,14 @@ function GameModal({
 
         {/* ================= GAME VIEW: MEGA JACKPOT ================= */}
         {slug === "jackpot" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b101c] border-2 border-amber-500/40 rounded-2xl p-6 text-center space-y-4">
-              <div className="text-6xl animate-pulse">🏆</div>
-              <div className="text-2xl font-black bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-[#0b101c] border-2 border-amber-500/40 rounded-2xl p-4 sm:p-6 text-center space-y-3">
+              <div className="text-5xl sm:text-6xl animate-pulse">🏆</div>
+              <div className="text-xl sm:text-2xl font-black bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
                 ৳500,000 BDT PROGRESSIVE POOL
               </div>
 
-              <div className="text-lg font-bold text-white bg-slate-900 border border-slate-800 py-3 rounded-xl max-w-sm mx-auto">
+              <div className="text-base sm:text-lg font-bold text-white bg-slate-900 border border-slate-800 py-2.5 sm:py-3 rounded-xl max-w-sm mx-auto">
                 {jackpotSlice || "Spin for the 200x Grand Prize!"}
               </div>
 
@@ -2098,14 +2265,14 @@ function GameModal({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto justify-between sm:justify-start">
                 <span className="text-xs text-slate-400 font-bold">Bet:</span>
                 {[50, 100, 500, 1000].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setBetAmount(amt)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition ${
                       betAmount === amt
                         ? "bg-amber-500 text-slate-950 border-amber-400"
                         : "border-slate-800 text-slate-300 hover:bg-slate-800"
@@ -2119,7 +2286,7 @@ function GameModal({
               <button
                 onClick={playJackpot}
                 disabled={isPlaying}
-                className="w-full sm:w-52 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-xl shadow-amber-500/30 transition transform active:scale-95"
+                className="w-full sm:w-52 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition active:scale-95"
               >
                 SPIN JACKPOT 🏆
               </button>
