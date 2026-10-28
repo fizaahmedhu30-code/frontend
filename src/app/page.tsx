@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import {
@@ -58,10 +58,21 @@ interface GameItem {
   image: string;
 }
 
+
+// Default games - pre-seeded so cards render immediately on Vercel (no empty grid flash)
+const DEFAULT_GAMES: GameItem[] = [
+  { slug: "slots",      name: "Lucky 777 Slots",   category: "slots",      rtp: 95, minBet: 10, maxBet: 50000, description: "Classic 3-reel slot machine with wild multipliers",      image: "🎰", jackpotAmount: 500000 },
+  { slug: "crash",      name: "Aviator Crash",      category: "crash",      rtp: 95, minBet: 10, maxBet: 50000, description: "Watch the rocket fly and cashout before it crashes!",   image: "🚀" },
+  { slug: "jackpot",    name: "Mega BDT Jackpot",   category: "jackpot",    rtp: 92, minBet: 50, maxBet: 10000, description: "Spin the wheel for progressive BDT jackpot",           image: "🏆", jackpotAmount: 500000 },
+  { slug: "teen-patti", name: "Teen Patti 3-Card",  category: "cards",      rtp: 95, minBet: 20, maxBet: 50000, description: "Popular South Asian 3-card poker game",               image: "🃏" },
+  { slug: "rummy",      name: "Speed Rummy",        category: "cards",      rtp: 95, minBet: 20, maxBet: 50000, description: "Fast-paced Indian/Bengali Rummy card showdown",        image: "♠️" },
+  { slug: "dice",       name: "Crypto Dice",        category: "dice",       rtp: 97, minBet: 10, maxBet: 50000, description: "Predict dice roll over or under for instant BDT",     image: "🎲" },
+  { slug: "color",      name: "Color Prediction",   category: "prediction", rtp: 95, minBet: 10, maxBet: 20000, description: "Predict Red, Green, or Violet for up to 9x payout!", image: "🎨" },
+];
 export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [games, setGames] = useState<GameItem[]>([]);
+  const [games, setGames] = useState<GameItem[]>(DEFAULT_GAMES);
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
 
@@ -546,8 +557,11 @@ export default function Home() {
               <button
                 onClick={() => {
                   if (!user) {
-                    setAuthMode("register");
-                    setShowAuthModal(true);
+                    const demoToken = "user_demo_1";
+                    localStorage.setItem("luckhub_token", demoToken);
+                    setToken(demoToken);
+                    setUser({ _id: "user_demo_1", username: "demo_player", email: "player@luckhub.com", phone: "01700000000", role: "user", balance: 5000, bonusBalance: 100, currency: "BDT", status: "active" } as any);
+                    setSelectedGame("crash");
                   } else {
                     setSelectedGame("crash");
                   }
@@ -661,8 +675,12 @@ export default function Home() {
                   <button
                     onClick={() => {
                       if (!user) {
-                        setAuthMode("login");
-                        setShowAuthModal(true);
+                        // Auto demo-login so guests can play instantly
+                        const demoToken = "user_demo_1";
+                        localStorage.setItem("luckhub_token", demoToken);
+                        setToken(demoToken);
+                        setUser({ _id: "user_demo_1", username: "demo_player", email: "player@luckhub.com", phone: "01700000000", role: "user", balance: 5000, bonusBalance: 100, currency: "BDT", status: "active" } as any);
+                        setSelectedGame(game.slug);
                       } else {
                         setSelectedGame(game.slug);
                       }
