@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Aviator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0c0c1e;color:#fff;font-family:system-ui,sans-serif;display:flex;flex-direction:column;height:100dvh;overflow:hidden;user-select:none}
+#top{flex:1;position:relative;min-height:0;overflow:hidden}
+canvas{width:100%;height:100%;display:block}
+#hist{position:absolute;top:6px;left:6px;right:6px;display:flex;gap:5px;overflow:hidden;height:26px;z-index:10}
+.hc{padding:2px 9px;border-radius:12px;font-size:11px;font-weight:800;flex-shrink:0;animation:pop .25s}
+.hc.lo{background:#0f2e14;color:#4ade80;border:1px solid #16a34a}
+.hc.md{background:#2e1f00;color:#fbbf24;border:1px solid #d97706}
+.hc.hi{background:#1e0d38;color:#c084fc;border:1px solid #9333ea}
+.hc.ex{background:#2e0808;color:#f87171;border:1px solid #ef4444}
+@keyframes pop{from{opacity:0;transform:scale(.7)}}
+#status{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 18px;font-size:12px;color:#ffd700;white-space:nowrap;z-index:10}
+#mbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);text-align:center;pointer-events:none;z-index:10}
+#mv{font-size:clamp(44px,10vw,80px);font-weight:900;line-height:1;transition:color .15s;text-shadow:0 0 40px rgba(255,210,0,.7)}
+#mv.crash{color:#ff4444;text-shadow:0 0 40px rgba(255,80,80,.8)!important}
+#ml{font-size:13px;color:#aaa;margin-top:4px;letter-spacing:.5px}
+#win{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);text-align:center;display:none;animation:popIn .35s;z-index:20}
+#win.show{display:block}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+#win b{display:block;font-size:clamp(28px,8vw,52px);font-weight:900;color:#ffd700;text-shadow:0 0 30px #ffd700}
+#win span{font-size:13px;color:#ccc}
+#cred{position:absolute;bottom:4px;right:8px;font-size:12px;color:#ffd700;background:rgba(0,0,0,.5);padding:3px 10px;border-radius:8px}
+#plane{position:absolute;font-size:30px;pointer-events:none;transition:opacity .2s;z-index:10}
+/* Controls */
+#ctrl{background:#131326;border-top:1px solid rgba(255,255,255,.08);padding:10px;display:flex;gap:8px;align-items:stretch;flex-shrink:0}
+#bp{flex:1;background:#1c1c36;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:7px}
+.bl{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.5px}
+.br{display:flex;gap:4px;align-items:center}
+#bi{flex:1;background:#0c0c1e;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:8px;font-size:18px;font-weight:800;text-align:center;width:0}
+.bq{background:#252545;border:1px solid rgba(255,255,255,.1);color:#bbb;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;transition:background .15s}
+.bq:hover{background:#353560;color:#fff}
+#ac{width:110px;min-width:90px;border-radius:12px;font-size:14px;font-weight:900;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:filter .15s,transform .1s;padding:10px 6px}
+#ac:active{transform:scale(.94)}
+#ac.place{background:linear-gradient(175deg,#ff6b35,#c41200);color:#fff;box-shadow:0 4px 16px rgba(200,30,0,.4)}
+#ac.cash{background:linear-gradient(175deg,#ffe234,#f59e0b);color:#000;box-shadow:0 4px 16px rgba(240,180,0,.4)}
+#ac.wait{background:#222;color:#555;cursor:default}
+#ac .am{font-size:14px}
+#ac .as{font-size:11px;opacity:.8}
+/* Autocashout */
+#acrow{display:flex;align-items:center;gap:6px}
+#acrow input[type=checkbox]{accent-color:#ffd700;width:14px;height:14px;cursor:pointer}
+#acrow label{font-size:11px;color:#888;cursor:pointer}
+#acrow #acval{width:70px;background:#0c0c1e;border:1px solid rgba(255,255,255,.15);color:#ffd700;border-radius:6px;padding:3px 6px;font-size:12px;font-weight:700}
+</style>
+</head>
+<body>
+<div id="top">
+  <canvas id="cv"></canvas>
+  <div id="hist"></div>
+  <div id="status">⏳ Starting in <span id="cd">5</span>s</div>
+  <div id="mbox"><div id="mv">1.00×</div><div id="ml">DEMO MODE</div></div>
+  <div id="win"><b id="wa"></b><span id="ws"></span></div>
+  <div id="plane">✈️</div>
+  <div id="cred">💳 <span id="cv2">5,000</span></div>
+</div>
+<div id="ctrl">
+  <div id="bp">
+    <div class="bl">Bet (Demo Credits)</div>
+    <div class="br">
+      <input id="bi" type="number" value="100" min="10" max="5000" step="10"/>
+    </div>
+    <div class="br">
+      <button class="bq" onclick="adj(.5)">½</button>
+      <button class="bq" onclick="adj(2)">2×</button>
+      <button class="bq" onclick="setB(100)">100</button>
+      <button class="bq" onclick="setB(500)">500</button>
+      <button class="bq" onclick="setB(1000)">1K</button>
+    </div>
+    <div id="acrow">
+      <input type="checkbox" id="acco" />
+      <label for="acco">Auto cashout at</label>
+      <input id="acval" type="number" value="2.00" min="1.01" step="0.1"/>×
+    </div>
+  </div>
+  <button id="ac" class="place" onclick="doAction()">
+    <span class="am" id="am">BET</span>
+    <span class="as" id="as">Place bet</span>
+  </button>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const mvEl=document.getElementById('mv'),mlEl=document.getElementById('ml');
+const stEl=document.getElementById('status'),cdEl=document.getElementById('cd');
+const acBtn=document.getElementById('ac'),amEl=document.getElementById('am'),asEl=document.getElementById('as');
+const histEl=document.getElementById('hist'),cv2El=document.getElementById('cv2');
+const winEl=document.getElementById('win'),waEl=document.getElementById('wa'),wsEl=document.getElementById('ws');
+const planeEl=document.getElementById('plane');
+
+let credits=5000,state='wait',crash=0,mult=1,betAmt=0,betOn=false,cashedOut=false,hist=[],raf=null,t0=null;
+
+const fmt=v=>v.toFixed(2)+'×';
+const upCred=()=>cv2El.textContent=credits.toLocaleString();
+const adj=m=>{const i=document.getElementById('bi');i.value=Math.max(10,Math.min(5000,Math.round(+i.value*m/10)*10))};
+const setB=v=>{document.getElementById('bi').value=v};
+
+function genCrash(){const r=Math.random();if(r<0.015)return 1.00;return Math.max(1.00,Math.round(99/(100*(1-r))*100)/100)}
+
+function setBtnWait(){acBtn.className='wait';amEl.textContent='BET';asEl.textContent='Wait for next round'}
+function setBtnBet(){acBtn.className='place';amEl.textContent='BET';asEl.textContent='Place bet'}
+function setBtnCash(m){acBtn.className='cash';amEl.textContent='CASH OUT';asEl.textContent=fmt(m)}
+
+function showWin(amt,sub){waEl.textContent=amt;wsEl.textContent=sub;winEl.className='show';setTimeout(()=>winEl.className='',2800)}
+
+function addHist(m){
+  hist.unshift(m);if(hist.length>14)hist.pop();
+  histEl.innerHTML=hist.map(v=>`<div class="hc ${v<2?'lo':v<5?'md':v<20?'hi':'ex'}">${fmt(v)}</div>`).join('');
+}
+
+function resize(){cv.width=cv.offsetWidth;cv.height=cv.offsetHeight}
+window.addEventListener('resize',resize);resize();
+
+function drawBg(){
+  const W=cv.width,H=cv.height;
+  ctx.fillStyle='#0c0c1e';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+  for(let y=0;y<H;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+  for(let x=0;x<W;x+=48){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  // Axes
+  ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(40,10);ctx.lineTo(40,H-30);ctx.lineTo(W-10,H-30);ctx.stroke();
+}
+
+function drawCurve(progress,crashed){
+  const W=cv.width,H=cv.height,pad=40,bot=30;
+  const gw=W-pad-10,gh=H-bot-10;
+  const pts=[];
+  const steps=80;
+  for(let i=0;i<=steps;i++){
+    const frac=i/steps;
+    const tSim=progress*frac;
+    const m=Math.pow(1+tSim,1.9);// curve shape
+    const px=pad+frac*gw;
+    const py=(H-bot)-(Math.min(m-1,5)/(5))*gh;
+    pts.push({x:px,y:Math.max(10,py)});
+  }
+  if(pts.length<2)return pts;
+  // Fill
+  ctx.beginPath();ctx.moveTo(pts[0].x,H-bot);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x,H-bot);ctx.closePath();
+  const g=ctx.createLinearGradient(0,0,0,H);
+  if(crashed){g.addColorStop(0,'rgba(255,60,60,.28)');g.addColorStop(1,'rgba(255,60,60,.0)')}
+  else{g.addColorStop(0,'rgba(255,200,0,.22)');g.addColorStop(1,'rgba(255,200,0,.0)')}
+  ctx.fillStyle=g;ctx.fill();
+  // Line
+  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle=crashed?'#ff4444':'#ffd700';ctx.lineWidth=2.5;
+  ctx.shadowColor=crashed?'#ff4444':'#ffd700';ctx.shadowBlur=10;ctx.stroke();ctx.shadowBlur=0;
+  return pts;
+}
+
+let progress=0;
+
+function loop(ts){
+  if(!t0)t0=ts;
+  const elapsed=(ts-t0)/1000;
+  progress=elapsed;
+  mult=Math.max(1.00,Math.round(Math.pow(1+elapsed,1.9)*100)/100);
+
+  if(mult>=crash){doCrash();return}
+
+  // Auto cashout
+  const ac=document.getElementById('acco').checked;
+  const acv=parseFloat(document.getElementById('acval').value)||2;
+  if(ac&&betOn&&!cashedOut&&mult>=acv)doAction();
+
+  mvEl.textContent=fmt(mult);
+  if(betOn&&!cashedOut)setBtnCash(mult);
+
+  drawBg();
+  const pts=drawCurve(progress,false);
+  // Move plane
+  if(pts&&pts.length>1){
+    const last=pts[pts.length-1],prev=pts[pts.length-2];
+    const ang=Math.atan2(prev.y-last.y,last.x-prev.x);
+    planeEl.style.left=(last.x-18)+'px';
+    planeEl.style.top=(last.y-22)+'px';
+    planeEl.style.transform=`rotate(${(-ang*180/Math.PI+5).toFixed(1)}deg)`;
+    planeEl.style.display='block';
+  }
+
+  raf=requestAnimationFrame(loop);
+}
+
+function startFlight(){
+  crash=genCrash();state='fly';mult=1;t0=null;cashedOut=false;progress=0;
+  mvEl.className='';mlEl.textContent='FLYING AWAY';
+  stEl.textContent='✈️ Round in progress';planeEl.style.display='block';
+  if(betOn){setBtnCash(1.00)}else{setBtnWait()}
+  raf=requestAnimationFrame(loop);
+}
+
+function doCrash(){
+  cancelAnimationFrame(raf);state='crash';
+  mvEl.className='crash';mvEl.textContent=fmt(crash);mlEl.textContent='💥 CRASHED!';
+  stEl.textContent=`💥 Crashed at ${fmt(crash)}`;
+  planeEl.style.display='none';
+  addHist(crash);
+  if(betOn&&!cashedOut)showWin(`-${betAmt}`,'Plane crashed! Better luck next time.');
+  betOn=false;cashedOut=false;
+  drawBg();drawCurve(progress,true);
+  setTimeout(startCountdown,2500);
+}
+
+let cdTimer=null;
+function startCountdown(){
+  state='wait';progress=0;mult=1;
+  mvEl.textContent='1.00×';mvEl.className='';mlEl.textContent='';
+  planeEl.style.display='none';drawBg();
+  setBtnBet();
+  let s=5;cdEl.textContent=s;stEl.innerHTML=`⏳ Starting in <span id="cd">${s}</span>s`;
+  cdTimer=setInterval(()=>{
+    s--;
+    const c=document.getElementById('cd');if(c)c.textContent=s;
+    if(s<=0){clearInterval(cdTimer);startFlight();}
+  },1000);
+}
+
+function doAction(){
+  if(state==='wait'){
+    betAmt=parseInt(document.getElementById('bi').value)||100;
+    if(betAmt<10)betAmt=10;
+    if(credits<betAmt){stEl.textContent='❌ Insufficient credits';return}
+    credits-=betAmt;upCred();betOn=true;
+    acBtn.className='wait';amEl.textContent='✅ BET PLACED';asEl.textContent=betAmt+' credits';
+    stEl.textContent='✅ Bet placed! Waiting for round...';
+  } else if(state==='fly'&&betOn&&!cashedOut){
+    const win=Math.floor(betAmt*mult);
+    credits+=win;upCred();cashedOut=true;
+    const profit=win-betAmt;
+    showWin(`+${win} credits`,`Cashed out at ${fmt(mult)} · Profit: +${profit}`);
+    setBtnWait();
+  }
+}
+
+upCred();startCountdown();
+</script>
+</body>
+</html>

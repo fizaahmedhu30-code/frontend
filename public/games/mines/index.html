@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Mines</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(160deg,#0a1628 0%,#071020 100%);color:#fff;font-family:system-ui,sans-serif;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px;overflow:hidden}
+h1{font-size:18px;font-weight:900;color:#ffd700;text-shadow:0 0 20px rgba(255,215,0,.5);letter-spacing:1px}
+.badge{font-size:11px;color:#888}
+#info{display:flex;gap:20px;align-items:center}
+.stat{text-align:center}
+.stat label{display:block;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px}
+.stat b{font-size:22px;font-weight:900;color:#ffd700}
+#grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:min(340px,90vw)}
+.cell{aspect-ratio:1;border-radius:10px;border:none;cursor:pointer;font-size:28px;display:grid;place-items:center;transition:transform .1s,box-shadow .15s;position:relative;overflow:hidden}
+.cell.hidden{background:linear-gradient(145deg,#1e3a5f,#122540);box-shadow:0 4px 10px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.07)}
+.cell.hidden:hover:not(:disabled){transform:scale(1.05);box-shadow:0 6px 20px rgba(0,150,255,.3),inset 0 1px 0 rgba(255,255,255,.1)}
+.cell.gem{background:linear-gradient(145deg,#0a3a1a,#063012);box-shadow:0 4px 14px rgba(0,200,80,.3);animation:gemPop .25s}
+.cell.bomb{background:linear-gradient(145deg,#3a0a0a,#200606);box-shadow:0 4px 14px rgba(200,0,0,.4);animation:shake .3s}
+.cell.reveal{background:linear-gradient(145deg,#1a2a1a,#0f1f0f);opacity:.6}
+@keyframes gemPop{from{transform:scale(.4)}to{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+#msg{min-height:22px;font-size:14px;font-weight:700;text-align:center;padding:0 10px}
+#controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;width:100%;max-width:360px}
+.row{display:flex;gap:8px;align-items:center;width:100%;justify-content:center}
+input[type=number]{background:#0c1a2e;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:8px 12px;font-size:15px;font-weight:700;text-align:center;width:100px}
+select{background:#0c1a2e;border:1px solid rgba(255,255,255,.15);color:#ffd700;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:700;cursor:pointer}
+button.main{border:none;border-radius:10px;padding:11px 28px;font-size:15px;font-weight:900;cursor:pointer;transition:filter .15s,transform .1s;letter-spacing:.5px}
+button.main:active{transform:scale(.95)}
+#startBtn{background:linear-gradient(175deg,#2563eb,#1e40af);color:#fff;box-shadow:0 4px 16px rgba(37,99,235,.4)}
+#startBtn.go{background:linear-gradient(175deg,#16a34a,#166534);color:#fff;box-shadow:0 4px 16px rgba(22,163,74,.4)}
+#cashBtn{background:linear-gradient(175deg,#fbbf24,#d97706);color:#000;box-shadow:0 4px 16px rgba(251,191,36,.4);display:none}
+#cred{font-size:12px;color:#ffd700;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);border-radius:20px;padding:4px 16px}
+</style>
+</head>
+<body>
+<h1>💣 MINES</h1>
+<div class="badge">DEMO MODE · play credits only</div>
+<div id="info">
+  <div class="stat"><label>Credits</label><b id="cred2">5,000</b></div>
+  <div class="stat"><label>Next Win</label><b id="nextWin">—</b></div>
+  <div class="stat"><label>Mines</label><b id="mineCount">3</b></div>
+</div>
+<div id="grid"></div>
+<div id="msg"></div>
+<div id="controls">
+  <div class="row">
+    <input id="betIn" type="number" value="100" min="10" max="5000" step="10" placeholder="Bet"/>
+    <select id="minesIn" onchange="document.getElementById('mineCount').textContent=this.value">
+      <option>1</option><option>2</option><option selected>3</option><option>5</option>
+      <option>7</option><option>10</option><option>15</option><option>20</option>
+    </select>
+    <button class="main" id="startBtn" onclick="startGame()">START</button>
+  </div>
+  <button class="main" id="cashBtn" onclick="cashout()">💰 CASH OUT</button>
+  <div id="cred">💳 <span id="credEl">5,000</span></div>
+</div>
+
+<script>
+let credits=5000,bet=100,mines=[],revealed=[],active=false,gems=0,mCount=3;
+const SIZE=25;
+
+const upCred=()=>{const v=credits.toLocaleString();document.getElementById('credEl').textContent=v;document.getElementById('cred2').textContent=v};
+const msg=t=>document.getElementById('msg').textContent=t;
+
+// Multiplier: combinatorial odds with house edge
+function calcMult(safeRevealed,totalMines){
+  // P(next is safe) decreases as we reveal. Accumulated payout:
+  let mult=1;
+  for(let i=0;i<safeRevealed;i++){
+    const safeLeft=SIZE-totalMines-i;
+    const totalLeft=SIZE-i;
+    mult=mult*(totalLeft/safeLeft)*0.97; // 3% house edge
+  }
+  return Math.max(1.01,Math.round(mult*100)/100);
+}
+
+function buildGrid(){
+  const grid=document.getElementById('grid');
+  grid.innerHTML='';
+  for(let i=0;i<SIZE;i++){
+    const btn=document.createElement('button');
+    btn.className='cell hidden';
+    btn.dataset.i=i;
+    btn.textContent='';
+    btn.addEventListener('click',()=>reveal(i));
+    grid.appendChild(btn);
+  }
+}
+
+function startGame(){
+  bet=parseInt(document.getElementById('betIn').value)||100;
+  mCount=parseInt(document.getElementById('minesIn').value)||3;
+  if(credits<bet){msg('❌ Not enough credits');return}
+  credits-=bet;upCred();
+  mines=[];revealed=new Array(SIZE).fill(false);gems=0;active=true;
+  // Place mines randomly
+  const pool=[...Array(SIZE).keys()];
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+  mines=pool.slice(0,mCount);
+  buildGrid();
+  document.getElementById('mineCount').textContent=mCount;
+  document.getElementById('cashBtn').style.display='none';
+  document.getElementById('startBtn').className='main go';
+  document.getElementById('startBtn').textContent='NEW GAME';
+  document.getElementById('startBtn').onclick=()=>{if(active)cashout();startGame()};
+  document.getElementById('nextWin').textContent='—';
+  msg('Click the grid to find gems! Avoid the mines.');
+}
+
+function reveal(i){
+  if(!active||revealed[i])return;
+  revealed[i]=true;
+  const cells=document.querySelectorAll('.cell');
+  const cell=cells[i];
+  if(mines.includes(i)){
+    // Boom!
+    cell.className='cell bomb';cell.textContent='💣';
+    active=false;
+    // Reveal all mines
+    mines.forEach(m=>{const c=cells[m];if(!revealed[m]){c.className='cell bomb';c.textContent='💣'}});
+    msg('💥 BOOM! You hit a mine. Better luck next time!');
+    document.getElementById('cashBtn').style.display='none';
+    document.getElementById('nextWin').textContent='—';
+  } else {
+    cell.className='cell gem';cell.textContent='💎';
+    gems++;
+    const m=calcMult(gems,mCount);
+    const win=Math.round(bet*m);
+    document.getElementById('nextWin').textContent=`${win} (${m}×)`;
+    document.getElementById('cashBtn').style.display='inline-block';
+    msg(`💎 Gem found! Cash out for ${win} credits (${m}×) or keep going!`);
+  }
+}
+
+function cashout(){
+  if(!active)return;
+  active=false;
+  const m=calcMult(gems,mCount);
+  const win=Math.round(bet*m);
+  credits+=win;upCred();
+  msg(`🏆 Cashed out! Won ${win} credits at ${m}×`);
+  document.getElementById('cashBtn').style.display='none';
+  document.getElementById('nextWin').textContent='—';
+  // Reveal remaining mines
+  const cells=document.querySelectorAll('.cell');
+  mines.forEach(m=>{if(!revealed[m]){cells[m].className='cell reveal';cells[m].textContent='💣'}});
+}
+
+buildGrid();upCred();
+msg('Set your bet, choose number of mines, then click START');
+document.getElementById('startBtn').textContent='START';
+document.getElementById('startBtn').onclick=startGame;
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Local Demo Slot</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; padding: 16px; color: #fde68a;
+    font-family: system-ui, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #7f1d1d, #2a0505 70%);
+  }
+  h1 { margin: 0; font-size: 18px; letter-spacing: .5px; text-align: center; }
+  .badge { font-size: 11px; color: #fca5a5; }
+  .reels { display: flex; gap: 10px; padding: 14px; border-radius: 16px; background: #1a0303;
+           border: 2px solid #f59e0b; box-shadow: 0 0 24px rgba(245,158,11,.35); }
+  .reel { width: 76px; height: 92px; border-radius: 10px; background: #fff7ed; display: grid;
+          place-items: center; font-size: 46px; }
+  .spinning .reel { animation: bump .12s infinite alternate; }
+  @keyframes bump { to { transform: translateY(-5px); } }
+  .row { display: flex; gap: 16px; align-items: center; }
+  .stat { text-align: center; font-size: 12px; color: #fca5a5; }
+  .stat b { display: block; font-size: 20px; color: #fde68a; }
+  button { border: 0; border-radius: 999px; padding: 12px 34px; font-size: 16px; font-weight: 800;
+           color: #3b0a0a; background: linear-gradient(#fde047, #f59e0b); cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  #msg { min-height: 20px; font-weight: 700; }
+</style>
+</head>
+<body>
+  <h1 id="title">Demo Slot</h1>
+  <div class="badge">DEMO MODE · play credits only · no real money</div>
+
+  <div class="reels" id="reels">
+    <div class="reel">🍒</div><div class="reel">🍋</div><div class="reel">⭐</div>
+  </div>
+
+  <div id="msg"></div>
+
+  <div class="row">
+    <div class="stat">Credits<b id="credits">1000</b></div>
+    <div class="stat">Bet<b id="bet">10</b></div>
+  </div>
+
+  <button id="spin">SPIN</button>
+
+<script>
+  // Title is passed from the lobby: /games/local-slot/index.html?game=Super%20Ace
+  const params = new URLSearchParams(location.search);
+  document.getElementById("title").textContent = params.get("game") || "Demo Slot";
+
+  const SYMBOLS = ["🍒", "🍋", "⭐", "🔔", "💎", "7️⃣"];
+  const PAYOUT = { three: 10, two: 2 };      // multipliers shown to the player - exactly what is applied
+  const BET = 10;
+  let credits = 1000;
+
+  const $ = (id) => document.getElementById(id);
+  const reels = [...document.querySelectorAll(".reel")];
+  const rand = () => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; // uniform, no hidden bias
+
+  $("spin").addEventListener("click", async () => {
+    if (credits < BET) { credits = 1000; $("msg").textContent = "Credits refilled (demo)"; $("credits").textContent = credits; return; }
+    credits -= BET;
+    $("credits").textContent = credits;
+    $("msg").textContent = "";
+    $("spin").disabled = true;
+    $("reels").classList.add("spinning");
+
+    const timer = setInterval(() => reels.forEach((r) => (r.textContent = rand())), 80);
+    await new Promise((r) => setTimeout(r, 900));
+    clearInterval(timer);
+
+    const result = reels.map(() => rand());
+    reels.forEach((r, i) => (r.textContent = result[i]));
+    $("reels").classList.remove("spinning");
+
+    const unique = new Set(result).size;
+    let win = 0;
+    if (unique === 1) win = BET * PAYOUT.three;
+    else if (unique === 2) win = BET * PAYOUT.two;
+    credits += win;
+    $("credits").textContent = credits;
+    $("msg").textContent = win ? `You won ${win}!` : "Try again";
+    $("spin").disabled = false;
+  });
+</script>
+</body>
+</html>

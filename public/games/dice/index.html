@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Dice</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(160deg,#0a1a2e,#06101c);color:#fff;font-family:system-ui,sans-serif;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px}
+h1{font-size:20px;font-weight:900;color:#38bdf8;text-shadow:0 0 20px rgba(56,189,248,.5)}
+#dice-box{display:flex;gap:24px;align-items:center;justify-content:center;padding:24px;background:rgba(255,255,255,.04);border-radius:20px;border:1px solid rgba(255,255,255,.08)}
+.die{width:80px;height:80px;background:linear-gradient(145deg,#fff,#e2e8f0);border-radius:16px;display:grid;place-items:center;font-size:42px;box-shadow:0 8px 24px rgba(0,0,0,.5),inset 0 2px 0 rgba(255,255,255,.8);transition:transform .3s;position:relative}
+.die.rolling{animation:roll .4s infinite}
+@keyframes roll{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-15deg) scale(1.05)}75%{transform:rotate(15deg) scale(1.05)}100%{transform:rotate(0) scale(1)}}
+#total-box{text-align:center;padding:12px 24px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);border-radius:14px}
+#total-val{font-size:52px;font-weight:900;color:#38bdf8;line-height:1}
+#total-lbl{font-size:12px;color:#64748b;margin-top:4px}
+#target-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+#slider{-webkit-appearance:none;appearance:none;width:200px;height:8px;border-radius:4px;outline:none;cursor:pointer;background:linear-gradient(90deg,#22c55e var(--pct,50%),#ef4444 var(--pct,50%))}
+#slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer}
+#sliderVal{font-size:20px;font-weight:900;color:#ffd700;width:36px;text-align:center}
+.pred-btn{border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;transition:all .15s}
+.pred-btn:active{transform:scale(.95)}
+#overBtn{background:linear-gradient(175deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 12px rgba(34,197,94,.4)}
+#underBtn{background:linear-gradient(175deg,#ef4444,#dc2626);color:#fff;box-shadow:0 4px 12px rgba(239,68,68,.4)}
+.pred-btn.active{outline:3px solid #ffd700}
+#payout-info{text-align:center;font-size:13px;color:#94a3b8}
+#payout-info b{color:#ffd700;font-size:16px}
+input[type=number]{background:#0c1a2e;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:8px 12px;font-size:15px;font-weight:700;width:110px;text-align:center}
+#rollBtn{border:none;border-radius:12px;padding:12px 40px;font-size:17px;font-weight:900;cursor:pointer;background:linear-gradient(175deg,#fbbf24,#d97706);color:#000;box-shadow:0 4px 18px rgba(251,191,36,.4);transition:filter .15s,transform .1s}
+#rollBtn:active{transform:scale(.95)}
+#rollBtn:disabled{opacity:.5;cursor:default}
+#msg{font-size:15px;font-weight:700;text-align:center;min-height:22px;padding:4px}
+.row{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+#cred{font-size:12px;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2);border-radius:20px;padding:4px 16px}
+</style>
+</head>
+<body>
+<h1>🎲 DICE</h1>
+<div id="dice-box">
+  <div class="die" id="d1">⚀</div>
+  <div style="font-size:28px;color:#475569">+</div>
+  <div class="die" id="d2">⚀</div>
+</div>
+<div id="total-box">
+  <div id="total-val">—</div>
+  <div id="total-lbl">TOTAL</div>
+</div>
+<div id="target-row">
+  <span style="font-size:12px;color:#888">Target:</span>
+  <input id="slider" type="range" min="2" max="12" value="7"
+    oninput="updateSlider(this.value)" style="--pct:45.5%"/>
+  <span id="sliderVal">7</span>
+</div>
+<div class="row">
+  <button class="pred-btn active" id="underBtn" onclick="setPred('under')">UNDER</button>
+  <button class="pred-btn" id="overBtn" onclick="setPred('over')">OVER</button>
+</div>
+<div id="payout-info">Win chance: <b id="chance">41.7%</b> · Payout: <b id="payout">2.28×</b></div>
+<div id="msg">Place your bet and roll!</div>
+<div class="row">
+  <input id="betIn" type="number" value="100" min="10" max="5000" step="10"/>
+  <button id="rollBtn" onclick="roll()">🎲 ROLL</button>
+</div>
+<div id="cred">💳 <span id="credEl">5,000</span> credits</div>
+
+<script>
+const FACES=['','⚀','⚁','⚂','⚃','⚄','⚅'];
+let credits=5000,pred='under';
+const upCred=()=>document.getElementById('credEl').textContent=credits.toLocaleString();
+const setPred=p=>{
+  pred=p;
+  document.getElementById('overBtn').className='pred-btn'+(p==='over'?' active':'');
+  document.getElementById('underBtn').className='pred-btn'+(p==='under'?' active':'');
+  updateSlider(document.getElementById('slider').value);
+};
+
+function updateSlider(v){
+  v=parseInt(v);
+  document.getElementById('sliderVal').textContent=v;
+  // Ways to roll under/over v with 2d6
+  let win=0;
+  for(let a=1;a<=6;a++)for(let b=1;b<=6;b++){
+    const s=a+b;
+    if(pred==='under'&&s<v)win++;
+    else if(pred==='over'&&s>v)win++;
+  }
+  const pct=win/36;
+  const mult=pct>0?Math.round(0.97/pct*100)/100:0;
+  document.getElementById('chance').textContent=(pct*100).toFixed(1)+'%';
+  document.getElementById('payout').textContent=mult+'×';
+  // Slider color
+  const frac=((v-2)/10)*100;
+  document.getElementById('slider').style.setProperty('--pct',frac+'%');
+}
+
+function roll(){
+  const bet=parseInt(document.getElementById('betIn').value)||100;
+  const target=parseInt(document.getElementById('slider').value);
+  if(credits<bet){document.getElementById('msg').textContent='❌ Not enough credits';return}
+  credits-=bet;upCred();
+  const btn=document.getElementById('rollBtn');
+  btn.disabled=true;
+  const d1=document.getElementById('d1'),d2=document.getElementById('d2');
+  d1.className='die rolling';d2.className='die rolling';
+  document.getElementById('msg').textContent='Rolling...';
+  setTimeout(()=>{
+    const r1=Math.ceil(Math.random()*6),r2=Math.ceil(Math.random()*6),sum=r1+r2;
+    d1.className='die';d2.className='die';
+    d1.textContent=FACES[r1];d2.textContent=FACES[r2];
+    document.getElementById('total-val').textContent=sum;
+    const win=(pred==='under'&&sum<target)||(pred==='over'&&sum>target);
+    // Calc mult
+    let winCnt=0;
+    for(let a=1;a<=6;a++)for(let b=1;b<=6;b++){const s=a+b;if(pred==='under'&&s<target)winCnt++;else if(pred==='over'&&s>target)winCnt++;}
+    const mult=winCnt>0?Math.round(0.97/(winCnt/36)*100)/100:0;
+    if(win){
+      const payout=Math.round(bet*mult);
+      credits+=payout;upCred();
+      document.getElementById('msg').textContent=`🏆 ${sum} ${pred} ${target}! Won ${payout} credits (${mult}×)`;
+    } else {
+      document.getElementById('msg').textContent=`😔 ${sum} — not ${pred} ${target}. Lost ${bet} credits.`;
+    }
+    btn.disabled=false;
+  },600);
+}
+
+updateSlider(7);upCred();
+</script>
+</body>
+</html>
