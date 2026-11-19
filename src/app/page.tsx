@@ -68,6 +68,8 @@ const DEFAULT_GAMES: GameItem[] = [
   { slug: "rummy",      name: "Speed Rummy",        category: "cards",      rtp: 95, minBet: 20, maxBet: 50000, description: "Fast-paced Indian/Bengali Rummy card showdown",        image: "♠️" },
   { slug: "dice",       name: "Crypto Dice",        category: "dice",       rtp: 97, minBet: 10, maxBet: 50000, description: "Predict dice roll over or under for instant BDT",     image: "🎲" },
   { slug: "color",      name: "Color Prediction",   category: "prediction", rtp: 95, minBet: 10, maxBet: 20000, description: "Predict Red, Green, or Violet for up to 9x payout!", image: "🎨" },
+  { slug: "hot-game",   name: "R777 Hot Game",       category: "slots",      rtp: 96, minBet: 10, maxBet: 50000, description: "Launch the live provider game from LuckHub",          image: "🔥" },
+  { slug: "fullhouse",  name: "Full House",          category: "cards",      rtp: 96, minBet: 10, maxBet: 50000, description: "Live Full House casino game",                         image: "🃏" },
 ];
 export default function Home() {
   const [token, setToken] = useState<string | null>(null);
@@ -75,6 +77,10 @@ export default function Home() {
   const [games, setGames] = useState<GameItem[]>(DEFAULT_GAMES);
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [externalGameUrl, setExternalGameUrl] = useState<string | null>(null);
+  const [externalGameName, setExternalGameName] = useState("");
+  const [externalGameLoading, setExternalGameLoading] = useState(false);
+  const [externalGameError, setExternalGameError] = useState("");
 
   // Modals
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -257,6 +263,29 @@ export default function Home() {
     setToken(null);
     setUser(null);
     setSelectedGame(null);
+    setExternalGameUrl(null);
+  };
+
+  const launchExternalGame = async (endpoint = "launch-game", name = "R777 Hot Game") => {
+    setExternalGameLoading(true);
+    setExternalGameError("");
+    if (name === "Full House") {
+      window.location.assign(`${API_BASE}/${endpoint}?redirect=1`);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/${endpoint}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || typeof data.url !== "string") {
+        throw new Error(data.message || "The game could not be launched");
+      }
+      setExternalGameName(name);
+      setExternalGameUrl(data.url);
+    } catch (error) {
+      setExternalGameError(error instanceof Error ? error.message : "The game could not be launched");
+    } finally {
+      setExternalGameLoading(false);
+    }
   };
 
   const refreshBalance = async () => {
@@ -674,6 +703,14 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => {
+                      if (game.slug === "hot-game") {
+                        launchExternalGame();
+                        return;
+                      }
+                      if (game.slug === "fullhouse") {
+                        launchExternalGame("launch-fullhouse", "Full House");
+                        return;
+                      }
                       if (!user) {
                         // Auto demo-login so guests can play instantly
                         const demoToken = "user_demo_1";
@@ -875,6 +912,60 @@ export default function Home() {
           }}
           onBalanceUpdate={(newBal) => setUser((prev) => (prev ? { ...prev, balance: newBal } : null))}
         />
+      )}
+
+      {externalGameLoading && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="rounded-2xl border border-amber-500/30 bg-[#10172a] px-6 py-5 text-center shadow-2xl">
+            <RefreshCw className="mx-auto mb-2 h-6 w-6 animate-spin text-amber-400" />
+            <p className="text-sm font-bold text-white">Launching game...</p>
+          </div>
+        </div>
+      )}
+
+      {externalGameUrl && (
+        <div className="fixed inset-0 z-[60] bg-black/90 p-2 sm:p-5">
+          <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-amber-500/40 bg-[#0b101c] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🔥</span>
+                <h2 className="text-sm font-bold text-white">{externalGameName}</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={externalGameUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-400"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  onClick={() => setExternalGameUrl(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                  aria-label="Close game"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={externalGameUrl}
+              title={externalGameName}
+              allow="autoplay; fullscreen; gamepad"
+              className="min-h-0 flex-1 border-0 bg-black"
+            />
+          </div>
+        </div>
+      )}
+
+      {externalGameError && (
+        <div className="fixed bottom-5 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3 rounded-xl border border-rose-500/40 bg-rose-950 px-4 py-3 text-xs font-semibold text-rose-200 shadow-xl">
+          <span>{externalGameError}</span>
+          <button onClick={() => setExternalGameError("")} aria-label="Dismiss error">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       {/* ======================= WALLET MODAL ======================= */}

@@ -52,9 +52,13 @@ const globalStore = (global as any).__LUCKHUB_STORE__ || {
     { slug: "rummy", name: "Speed Rummy", category: "cards", rtp: 95, minBet: 20, maxBet: 50000, isFeatured: false, order: 5, description: "Fast-paced Indian/Bengali Rummy card showdown", image: "♠️" },
     { slug: "dice", name: "Crypto Dice", category: "dice", rtp: 97, minBet: 10, maxBet: 50000, isFeatured: false, order: 6, description: "Predict dice roll over or under for instant BDT", image: "🎲" },
     { slug: "color", name: "Color Prediction", category: "prediction", rtp: 95, minBet: 10, maxBet: 20000, isFeatured: true, order: 7, description: "Predict Red, Green, or Violet for up to 9x payout!", image: "🎨" },
+    { slug: "hot-game", name: "R777 Hot Game", category: "slots", rtp: 96, minBet: 10, maxBet: 50000, isFeatured: true, order: 8, description: "Launch the live provider game from LuckHub", image: "🔥" },
+    { slug: "fullhouse", name: "Full House", category: "cards", rtp: 96, minBet: 10, maxBet: 50000, isFeatured: true, order: 9, description: "Live Full House casino game", image: "🃏" },
   ],
 };
 (global as any).__LUCKHUB_STORE__ = globalStore;
+
+const externalGameUrl = "https://www.r777ab.com/wps/game/launchGame?gameId=HOT_GAME%2C171099&nodeId=171099&accountType=1&confirmTrans=0&vassalage=JL&launchMode=GLS&platform=flash&clientType=3&language=BN&merchantCode=r777bdt&sourceType=2";
 
 async function getUserFromToken(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
@@ -125,6 +129,79 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   // GET /api/games
   if (endpoint === "games") {
     return NextResponse.json({ games: globalStore.games });
+  }
+
+  if (endpoint === "launch-game") {
+    const authorization = process.env.R777_AUTHORIZATION;
+    if (!authorization) {
+      return NextResponse.json({ message: "R777_AUTHORIZATION is not configured" }, { status: 503 });
+    }
+
+    try {
+      const upstreamResponse = await fetch(externalGameUrl, {
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          Language: "BN",
+          Merchant: "r777bdt",
+          Device: "web",
+          Authorization: authorization,
+        },
+        cache: "no-store",
+      });
+      const responseText = await upstreamResponse.text();
+      let upstreamData: unknown;
+
+      try {
+        upstreamData = JSON.parse(responseText);
+      } catch {
+        upstreamData = null;
+      }
+
+      const gameUrl =
+        typeof upstreamData === "object" && upstreamData !== null
+          ? "url" in upstreamData && typeof upstreamData.url === "string"
+            ? upstreamData.url
+            : "data" in upstreamData && typeof upstreamData.data === "object" && upstreamData.data !== null && "url" in upstreamData.data && typeof upstreamData.data.url === "string"
+              ? upstreamData.data.url
+              : null
+          : null;
+      if (!upstreamResponse.ok || typeof gameUrl !== "string") {
+        return NextResponse.json(
+          { message: "The game provider did not return a playable URL" },
+          { status: 502 },
+        );
+      }
+
+      const parsedGameUrl = new URL(gameUrl);
+      if (parsedGameUrl.protocol !== "http:" && parsedGameUrl.protocol !== "https:") {
+        return NextResponse.json({ message: "The provider returned an invalid game URL" }, { status: 502 });
+      }
+
+      return NextResponse.json({ success: true, url: parsedGameUrl.toString() });
+    } catch (error) {
+      console.error("External game launch failed", error);
+      return NextResponse.json({ message: "Unable to contact the game provider" }, { status: 502 });
+    }
+  }
+
+  if (endpoint === "launch-fullhouse") {
+    const configuredUrl = process.env.FULLHOUSE_GAME_URL;
+    if (!configuredUrl) {
+      return NextResponse.json({ message: "FULLHOUSE_GAME_URL is not configured" }, { status: 503 });
+    }
+
+    try {
+      const parsedGameUrl = new URL(configuredUrl);
+      if (parsedGameUrl.protocol !== "https:" || parsedGameUrl.hostname !== "wbgame.richcraze168.com") {
+        return NextResponse.json({ message: "The Full House URL is invalid" }, { status: 503 });
+      }
+      if (req.nextUrl.searchParams.get("redirect") === "1") {
+        return NextResponse.redirect(parsedGameUrl);
+      }
+      return NextResponse.json({ success: true, url: parsedGameUrl.toString() });
+    } catch {
+      return NextResponse.json({ message: "The Full House URL is invalid" }, { status: 503 });
+    }
   }
 
   // GET /api/auth/me
