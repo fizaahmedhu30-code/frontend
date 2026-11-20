@@ -68,7 +68,7 @@ const DEFAULT_GAMES: GameItem[] = [
   { slug: "rummy",      name: "Speed Rummy",        category: "cards",      rtp: 95, minBet: 20, maxBet: 50000, description: "Fast-paced Indian/Bengali Rummy card showdown",        image: "♠️" },
   { slug: "dice",       name: "Crypto Dice",        category: "dice",       rtp: 97, minBet: 10, maxBet: 50000, description: "Predict dice roll over or under for instant BDT",     image: "🎲" },
   { slug: "color",      name: "Color Prediction",   category: "prediction", rtp: 95, minBet: 10, maxBet: 20000, description: "Predict Red, Green, or Violet for up to 9x payout!", image: "🎨" },
-  { slug: "hot-game",   name: "SuperAce",            category: "slots",      rtp: 96, minBet: 10, maxBet: 50000, description: "JILI-style SuperAce slot — fully playable",              image: "🃏" },
+  { slug: "hot-game",   name: "SuperAce",            category: "slots",      rtp: 96, minBet: 10, maxBet: 50000, description: "JILI SuperAce powered by R777 API",                    image: "🃏" },
   { slug: "fullhouse",  name: "Full House",          category: "cards",      rtp: 96, minBet: 10, maxBet: 50000, description: "Live Full House casino game",                         image: "🃏" },
 ];
 export default function Home() {
@@ -708,7 +708,7 @@ export default function Home() {
                   <button
                     onClick={() => {
                       if (game.slug === "hot-game") {
-                        window.location.assign("/games/slots/index.html?game=SuperAce");
+                        window.location.assign(`${API_BASE}/launch-game?redirect=1`);
                         return;
                       }
                       if (game.slug === "fullhouse") {
