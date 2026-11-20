@@ -137,6 +137,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       return NextResponse.json({ message: "R777_AUTHORIZATION is not configured" }, { status: 503 });
     }
 
+    const providerCookie = process.env.R777_COOKIE;
+    const providerReferer = process.env.R777_REFERER || "https://www.r777ab.com/seamless?gameType=RNG";
+
     try {
       const upstreamResponse = await fetch(externalGameUrl, {
         headers: {
@@ -145,6 +148,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
           Merchant: "r777bdt",
           Device: "web",
           Authorization: authorization,
+          Referer: providerReferer,
+          ...(providerCookie ? { Cookie: providerCookie } : {}),
         },
         cache: "no-store",
       });
@@ -159,7 +164,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
 
       const gameUrl =
         typeof upstreamData === "object" && upstreamData !== null
-          ? "url" in upstreamData && typeof upstreamData.url === "string"
+          ? "value" in upstreamData && typeof upstreamData.value === "string"
+            ? upstreamData.value
+            : "value" in upstreamData && typeof upstreamData.value === "object" && upstreamData.value !== null && "content" in upstreamData.value && typeof upstreamData.value.content === "object" && upstreamData.value.content !== null && "game_url" in upstreamData.value.content && typeof upstreamData.value.content.game_url === "string"
+              ? upstreamData.value.content.game_url
+            : "url" in upstreamData && typeof upstreamData.url === "string"
             ? upstreamData.url
             : "data" in upstreamData && typeof upstreamData.data === "object" && upstreamData.data !== null && "url" in upstreamData.data && typeof upstreamData.data.url === "string"
               ? upstreamData.data.url
