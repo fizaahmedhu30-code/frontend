@@ -58,7 +58,8 @@ const globalStore = (global as any).__LUCKHUB_STORE__ || {
 };
 (global as any).__LUCKHUB_STORE__ = globalStore;
 
-const externalGameUrl = "https://www.r777ab.com/wps/game/launchGame?gameId=HOT_GAME%2C171099&nodeId=171099&accountType=1&confirmTrans=0&vassalage=JL&launchMode=GLS&platform=flash&clientType=3&language=BN&merchantCode=r777bdt&sourceType=2";
+const externalGameUrl = (accountType = process.env.R777_ACCOUNT_TYPE || "1", platform = process.env.R777_PLATFORM || "flash") =>
+  `https://www.r777ab.com/wps/game/launchGame?gameId=HOT_GAME%2C171099&nodeId=171099&accountType=${encodeURIComponent(accountType)}&confirmTrans=0&vassalage=JL&launchMode=GLS&platform=${encodeURIComponent(platform)}&clientType=3&language=BN&merchantCode=r777bdt&sourceType=2`;
 
 async function getUserFromToken(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
@@ -141,7 +142,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     const providerReferer = process.env.R777_REFERER || "https://www.r777ab.com/seamless?gameType=RNG";
 
     try {
-      const upstreamResponse = await fetch(externalGameUrl, {
+      const upstreamResponse = await fetch(externalGameUrl(), {
         headers: {
           Accept: "application/json, text/plain, */*",
           Language: "BN",
