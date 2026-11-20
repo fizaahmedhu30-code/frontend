@@ -273,6 +273,10 @@ export default function Home() {
       window.location.assign(`${API_BASE}/${endpoint}?redirect=1`);
       return;
     }
+    if (name === "R777 Hot Game") {
+      window.location.assign(`${API_BASE}/${endpoint}?redirect=1`);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/${endpoint}`, { cache: "no-store" });
       const data = await res.json();

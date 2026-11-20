@@ -186,6 +186,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
         return NextResponse.json({ message: "The provider returned an invalid game URL" }, { status: 502 });
       }
 
+      if (req.nextUrl.searchParams.get("redirect") === "1") {
+        return NextResponse.redirect(parsedGameUrl);
+      }
+
       return NextResponse.json({ success: true, url: parsedGameUrl.toString() });
     } catch (error) {
       console.error("External game launch failed", error);
